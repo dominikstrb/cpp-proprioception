@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 
 
-
-
 def load_data(pos, data_dir="data/MLMC_Data/"):  # Update if needed
     csv_filename = f"mabel_con_xy_{pos[0]}_{pos[1]}_individualised.csv"
     csv_path = os.path.join(data_dir, csv_filename)
@@ -76,7 +74,6 @@ def preprocess_data(df, lag=1):
 
     y_array = np.stack(block_arrays_y, axis=0)  # shape: (blocks, time, 2)
     print("Final shape of Y array:", y_array.shape)
-
     x_array = np.stack([x_array[:, :-lag, 0], x_array[:, lag:, 1]], axis=-1)
     y_array = np.stack([y_array[:, :-lag, 0], y_array[:, lag:, 1]], axis=-1)
 
