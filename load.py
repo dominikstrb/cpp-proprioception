@@ -74,8 +74,11 @@ def preprocess_data(df, lag=1):
 
     y_array = np.stack(block_arrays_y, axis=0)  # shape: (blocks, time, 2)
     print("Final shape of Y array:", y_array.shape)
-    x_array = np.stack([x_array[:, :-lag, 0], x_array[:, lag:, 1]], axis=-1)
-    y_array = np.stack([y_array[:, :-lag, 0], y_array[:, lag:, 1]], axis=-1)
+
+    
+    if lag > 0:
+        x_array = np.stack([x_array[:, :-lag, 0], x_array[:, lag:, 1]], axis=-1)
+        y_array = np.stack([y_array[:, :-lag, 0], y_array[:, lag:, 1]], axis=-1)
 
     xy_array = np.concatenate([x_array, y_array], axis=-1)
     print("Final shape of XY array:", xy_array.shape)
