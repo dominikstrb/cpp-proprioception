@@ -16,11 +16,11 @@ import arviz as az
 numpyro.set_host_device_count(4)
 
 
-from load import load_data, preprocess_data
-from constants import sampling_rate
-from utils import compute_crosscorr_stats
-import models
-from models import (
+from cppp.load import load_data, preprocess_data
+from cppp.constants import sampling_rate
+from cppp.utils import compute_crosscorr_stats
+import cppp.models as models
+from cppp.models import (
     CorrelatedRelativeObservationBoundedActor,
     CorrelatedObservationBoundedActor,
 )
@@ -33,12 +33,8 @@ def lqg_model(x, ModelType):
     dim = x.shape[2] // 2
 
     # priors
-    action_variability = numpyro.sample(
-        "action_variability", dist.HalfNormal(0.5), sample_shape=(dim,)
-    )
-    action_cost = numpyro.sample(
-        "action_cost", dist.HalfNormal(0.5), sample_shape=(dim,)
-    )
+    action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5), sample_shape=(dim,))
+    action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5), sample_shape=(dim,))
 
     # prior on correlation
     if dim == 1:  # if the data is one-dimensional, we don't need correlations
@@ -54,12 +50,8 @@ def lqg_model(x, ModelType):
         numpyro.deterministic("rho", L[1, 0])
 
     if ModelType == CorrelatedObservationBoundedActor:
-        sigma_target = numpyro.sample(
-            "sigma_target", dist.HalfNormal(1.), sample_shape=(dim,)
-        )
-        sigma_cursor = numpyro.sample(
-            "sigma_cursor", dist.HalfNormal(1.), sample_shape=(dim,)
-        )
+        sigma_target = numpyro.sample("sigma_target", dist.HalfNormal(1.0), sample_shape=(dim,))
+        sigma_cursor = numpyro.sample("sigma_cursor", dist.HalfNormal(1.0), sample_shape=(dim,))
 
         # pass the parameters to the model
         model = ModelType(
@@ -74,7 +66,7 @@ def lqg_model(x, ModelType):
         )
 
     elif ModelType == CorrelatedRelativeObservationBoundedActor:
-        sigma = numpyro.sample("sigma", dist.HalfNormal(1.), sample_shape=(dim,))
+        sigma = numpyro.sample("sigma", dist.HalfNormal(1.0), sample_shape=(dim,))
 
         # pass the parameters to the model
         model = ModelType(
@@ -95,12 +87,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Model fitting")
     parser.add_argument("--pos", type=int, nargs=2, default=[12, 22], help="Position in the workspace")
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
-    parser.add_argument(
-        "--nwarmup", type=int, default=1_000, help="Number of warump steps for NUTS."
-    )
-    parser.add_argument(
-        "--nsamp", type=int, default=1_000, help="Number of samples for NUTS."
-    )
+    parser.add_argument("--nwarmup", type=int, default=1_000, help="Number of warump steps for NUTS.")
+    parser.add_argument("--nsamp", type=int, default=1_000, help="Number of samples for NUTS.")
     parser.add_argument("--nchain", type=int, default=4, help="Number of chains.")
     parser.add_argument(
         "--model",
@@ -114,7 +102,6 @@ def parse_args():
 
 
 if __name__ == "__main__":
-
     args = parse_args()
 
     # --- Load and preprocess data ---
@@ -125,15 +112,13 @@ if __name__ == "__main__":
 
     # --- Run MCMC for model fitting ---
     nuts_kernel = NUTS(lqg_model)
-    mcmc_xy = MCMC(
-        nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4
-    )
+    mcmc_xy = MCMC(nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4)
     mcmc_xy.run(random.PRNGKey(1), xy_array, ModelType)
 
     inference_data_xy = az.from_numpyro(mcmc_xy)
 
     if args.save:
-        inference_data_xy.to_netcdf(f"mcmc-{args.pos}-{args.model}-{args.seed}.nc")
+        inference_data_xy.to_netcdf(f"results/mcmc-{args.pos}-{args.model}-{args.seed}.nc")
 
     summary_xy = az.summary(inference_data_xy)
     print(summary_xy)
@@ -142,18 +127,14 @@ if __name__ == "__main__":
     posterior_mean = summary_xy["mean"].to_dict()
     if ModelType == CorrelatedRelativeObservationBoundedActor:
         params = {
-            "sigma": jnp.stack(
-                [posterior_mean["sigma[0]"], posterior_mean["sigma[1]"]]
-            ),
+            "sigma": jnp.stack([posterior_mean["sigma[0]"], posterior_mean["sigma[1]"]]),
             "corr_chol": jnp.array(
                 [
                     [posterior_mean["L[0, 0]"], posterior_mean["L[0, 1]"]],
                     [posterior_mean["L[1, 0]"], posterior_mean["L[1, 1]"]],
                 ]
             ),
-            "action_cost": jnp.stack(
-                [posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]
-            ),
+            "action_cost": jnp.stack([posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]),
             "action_variability": jnp.stack(
                 [
                     posterior_mean["action_variability[0]"],
@@ -163,21 +144,15 @@ if __name__ == "__main__":
         }
     elif ModelType == CorrelatedObservationBoundedActor:
         params = {
-            "sigma_target": jnp.stack(
-                [posterior_mean["sigma_target[0]"], posterior_mean["sigma_target[1]"]]
-            ),
-            "sigma_cursor": jnp.stack(
-                [posterior_mean["sigma_cursor[0]"], posterior_mean["sigma_cursor[1]"]]
-            ),
+            "sigma_target": jnp.stack([posterior_mean["sigma_target[0]"], posterior_mean["sigma_target[1]"]]),
+            "sigma_cursor": jnp.stack([posterior_mean["sigma_cursor[0]"], posterior_mean["sigma_cursor[1]"]]),
             "corr_chol": jnp.array(
                 [
                     [posterior_mean["L[0, 0]"], posterior_mean["L[0, 1]"]],
                     [posterior_mean["L[1, 0]"], posterior_mean["L[1, 1]"]],
                 ]
             ),
-            "action_cost": jnp.stack(
-                [posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]
-            ),
+            "action_cost": jnp.stack([posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]),
             "action_variability": jnp.stack(
                 [
                     posterior_mean["action_variability[0]"],
@@ -193,18 +168,18 @@ if __name__ == "__main__":
     )  # I am simulating more trials to get smoother simulated CCGs without influence of random fluctuations
 
     # --- Compute CCGs for X and Y arrays ---
-    lag_times_x, avg_data_x, std_data_x, lag_data_x, corr_data_x = (
-        compute_crosscorr_stats(xy_array[..., [0, 1]], sampling_rate=sampling_rate)
+    lag_times_x, avg_data_x, std_data_x, lag_data_x, corr_data_x = compute_crosscorr_stats(
+        xy_array[..., [0, 1]], sampling_rate=sampling_rate
     )
-    lag_times_y, avg_data_y, std_data_y, lag_data_y, corr_data_y = (
-        compute_crosscorr_stats(xy_array[..., [2, 3]], sampling_rate=sampling_rate)
+    lag_times_y, avg_data_y, std_data_y, lag_data_y, corr_data_y = compute_crosscorr_stats(
+        xy_array[..., [2, 3]], sampling_rate=sampling_rate
     )
 
-    lag_times_x, avg_model_x, std_model_x, lag_model_x, corr_model_x = (
-        compute_crosscorr_stats(sim_data[..., [0, 1]], sampling_rate=sampling_rate)
+    lag_times_x, avg_model_x, std_model_x, lag_model_x, corr_model_x = compute_crosscorr_stats(
+        sim_data[..., [0, 1]], sampling_rate=sampling_rate
     )
-    lag_times_y, avg_model_y, std_model_y, lag_model_y, corr_model_y = (
-        compute_crosscorr_stats(sim_data[..., [2, 3]], sampling_rate=sampling_rate)
+    lag_times_y, avg_model_y, std_model_y, lag_model_y, corr_model_y = compute_crosscorr_stats(
+        sim_data[..., [2, 3]], sampling_rate=sampling_rate
     )
 
     if args.plot:
@@ -258,9 +233,7 @@ if __name__ == "__main__":
         axs[0].set_ylim(-0.25, 0.75)
 
         # --- Panel 2: Model (X and Y) ---
-        axs[1].plot(
-            lag_times_x, avg_model_x, label="X model", color="C0", linestyle="--"
-        )
+        axs[1].plot(lag_times_x, avg_model_x, label="X model", color="C0", linestyle="--")
         axs[1].fill_between(
             lag_times_x,
             avg_model_x - std_model_x,
@@ -279,9 +252,7 @@ if __name__ == "__main__":
             color="C0",
         )
 
-        axs[1].plot(
-            lag_times_y, avg_model_y, label="Y model", color="C1", linestyle="--"
-        )
+        axs[1].plot(lag_times_y, avg_model_y, label="Y model", color="C1", linestyle="--")
         axs[1].fill_between(
             lag_times_y,
             avg_model_y - std_model_y,
@@ -307,4 +278,4 @@ if __name__ == "__main__":
 
         plt.suptitle("Cross-Correlation: Data vs Model (Separated Panels)")
         plt.tight_layout()
-        plt.savefig(f"ccgs-{args.pos}-{args.model}-{args.seed}.png")
+        plt.savefig(f"results/ccgs-{args.pos}-{args.model}-{args.seed}.png")
