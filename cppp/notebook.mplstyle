@@ -37,6 +37,3 @@ text.usetex:            False
 # plot elements
 lines.linewidth:        2 
 lines.markersize :      3
-
-savefig.bbox:           tight
-savefig.pad_inches:     0   
