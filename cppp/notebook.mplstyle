@@ -1,0 +1,42 @@
+# font
+font.family:            sans-serif
+font.sans-serif:        Arial
+# font.size:              14
+axes.titleweight:       bold
+
+# font size
+xtick.labelsize:        12
+ytick.labelsize:        12
+axes.labelsize:         14
+axes.titlesize:         14
+axes.labelpad:          2
+figure.labelsize:       14
+
+# axes and tick labels
+xtick.bottom:           True 
+ytick.left:             True 
+xtick.major.size:       4     
+xtick.major.width:      1
+xtick.major.pad:        4
+ytick.major.size:       4     
+ytick.major.width:      1     
+ytick.major.pad:        4
+axes.spines.top:        False
+axes.spines.right:      False
+axes.linewidth:         1
+
+# legend
+legend.fontsize:        12
+legend.title_fontsize:  14
+legend.frameon:         False
+
+# latex
+text.usetex:            False
+#text.latex.preamble:    "\usepackage{uarial} \usepackage{cmbright}" 
+
+# plot elements
+lines.linewidth:        2 
+lines.markersize :      3
+
+savefig.bbox:           tight
+savefig.pad_inches:     0   
