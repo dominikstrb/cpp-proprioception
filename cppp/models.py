@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax.scipy import linalg
-from lqg import Actor, System
+from lqg import Actor, System, Dynamics
 
 
 class CorrelatedRelativeObservationBoundedActor(System):
@@ -86,3 +86,97 @@ class CorrelatedObservationBoundedActor(System):
         spec = Actor(A=A, B=B, F=F, V=V, W=W, Q=Q, R=R, T=T)
 
         super().__init__(actor=spec, dynamics=spec)
+
+
+class CorrelatedObservationJerkBoundedActor(System):
+    def __init__(
+        self,
+        sigma_target,
+        sigma_cursor,
+        corr_chol,
+        action_variability,
+        action_cost,
+        jerk_cost=0.0,
+        process_noise=1.0,
+        dt=1.0 / 60.0,
+        dim=2,  # TODO: currently only dim=2 is allowed
+        T=1000,
+    ):
+        dim = 2
+        # dimensionality
+        d = 2 * dim
+
+        self.process_noise = process_noise
+
+        # dynamics model
+        A = jnp.array(
+            [
+                [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0, 0.0, dt, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+        B = jnp.array(
+            [
+                [0.0, 0.0],
+                [0.0, 0.0],
+                [0.0, 0.0],
+                [0.0, 0.0],
+                [dt, 0.0],
+                [0.0, dt],
+                [1.0, 0.0],
+                [0.0, 1.0],
+            ]
+        )
+
+        # observation model
+        F = jnp.eye(4, 8)
+
+        # noise model
+        V = jnp.array(
+            [
+                [process_noise, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, action_variability[0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, process_noise, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, action_variability[1], 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        W_target = jnp.diag(sigma_target) @ corr_chol
+        W_cursor = jnp.diag(sigma_cursor)
+        W = linalg.block_diag(W_target, W_cursor)
+
+        dims = list(range(d)[::2]) + list(range(d)[1::2])
+        W = W[dims, :][:, dims]
+
+        # cost function
+        # state cost (target tracking) + action effort
+        Q = jnp.array(
+            [
+                [1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [-1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, action_cost[0], 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, action_cost[1]],
+            ]
+        )
+
+        # jerk cost
+        R = jnp.eye(B.shape[1]) * jerk_cost
+
+        dynamics = Dynamics(A=A, B=B, F=F, V=V, W=W, T=T)
+
+        actor = Actor(A=A, B=B, F=F, V=V, W=W, Q=Q, R=R, T=T)
+
+        super().__init__(dynamics=dynamics, actor=actor)

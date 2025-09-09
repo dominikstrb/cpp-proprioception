@@ -78,6 +78,24 @@ def lqg_model(x, ModelType):
             dt=1 / sampling_rate,
             dim=dim,
         )
+        
+    elif ModelType == models.CorrelatedObservationJerkBoundedActor:
+        sigma_target = numpyro.sample("sigma_target", dist.HalfNormal(1.0), sample_shape=(dim,))
+        sigma_cursor = numpyro.sample("sigma_cursor", dist.HalfNormal(1.0), sample_shape=(dim,))
+        jerk_cost = numpyro.sample("jerk_cost", dist.HalfNormal(0.5))
+
+        # pass the parameters to the model
+        model = ModelType(
+            action_variability=action_variability,
+            action_cost=action_cost,
+            sigma_target=sigma_target,
+            sigma_cursor=sigma_cursor,
+            corr_chol=L,
+            jerk_cost=jerk_cost,
+            T=T,
+            dt=1 / sampling_rate,
+            dim=dim,
+        )
 
     # likelihood
     numpyro.sample("x", model.conditional_distribution(x), obs=x[:, 1:])
@@ -113,7 +131,7 @@ if __name__ == "__main__":
     # --- Run MCMC for model fitting ---
     nuts_kernel = NUTS(lqg_model)
     mcmc_xy = MCMC(nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4)
-    mcmc_xy.run(random.PRNGKey(1), xy_array, ModelType)
+    mcmc_xy.run(random.PRNGKey(args.seed), xy_array, ModelType)
 
     inference_data_xy = az.from_numpyro(mcmc_xy)
 
@@ -160,6 +178,26 @@ if __name__ == "__main__":
                 ]
             ),
         }
+    elif ModelType == models.CorrelatedObservationJerkBoundedActor:
+        params = {
+            "sigma_target": jnp.stack([posterior_mean["sigma_target[0]"], posterior_mean["sigma_target[1]"]]),
+            "sigma_cursor": jnp.stack([posterior_mean["sigma_cursor[0]"], posterior_mean["sigma_cursor[1]"]]),
+            "corr_chol": jnp.array(
+                [
+                    [posterior_mean["L[0, 0]"], posterior_mean["L[0, 1]"]],
+                    [posterior_mean["L[1, 0]"], posterior_mean["L[1, 1]"]],
+                ]
+            ),
+            "action_cost": jnp.stack([posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]),
+            "action_variability": jnp.stack(
+                [
+                    posterior_mean["action_variability[0]"],
+                    posterior_mean["action_variability[1]"],
+                ]
+            ),
+            "jerk_cost": posterior_mean["jerk_cost"],
+        }
+
 
     # --- Simulate data from the model given posterior mean parameters ---
     model = ModelType(**params, T=xy_array.shape[1], dt=1 / sampling_rate, dim=2)
