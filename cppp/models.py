@@ -81,7 +81,7 @@ class CorrelatedObservationBoundedActor(System):
 
         # cost function
         Q = linalg.block_diag(*[jnp.array([[1.0, -1.0], [-1.0, 1.0]])] * dim)
-        R = jnp.eye(B.shape[1]) * action_cost
+        R = jnp.diag(action_cost) 
 
         spec = Actor(A=A, B=B, F=F, V=V, W=W, Q=Q, R=R, T=T)
 
@@ -106,6 +106,8 @@ class CorrelatedObservationJerkBoundedActor(System):
         # dimensionality
         d = 2 * dim
 
+        m = 1.0
+
         self.process_noise = process_noise
 
         # dynamics model
@@ -115,8 +117,8 @@ class CorrelatedObservationJerkBoundedActor(System):
                 [0.0, 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0, 0.0, dt, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt],
+                [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt / m, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, dt / m],
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
             ]
@@ -127,10 +129,10 @@ class CorrelatedObservationJerkBoundedActor(System):
                 [0.0, 0.0],
                 [0.0, 0.0],
                 [0.0, 0.0],
+                [0., 0.0],
+                [0.0, 0.],
                 [dt, 0.0],
                 [0.0, dt],
-                [1.0, 0.0],
-                [0.0, 1.0],
             ]
         )
 
@@ -173,7 +175,7 @@ class CorrelatedObservationJerkBoundedActor(System):
         )
 
         # jerk cost
-        R = jnp.eye(B.shape[1]) * jerk_cost
+        R = jnp.eye(B.shape[1]) * jerk_cost * dt**2
 
         dynamics = Dynamics(A=A, B=B, F=F, V=V, W=W, T=T)
 
