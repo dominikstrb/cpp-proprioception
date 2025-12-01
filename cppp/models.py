@@ -145,7 +145,7 @@ class CorrelatedObservationSubjectiveActor(System):
         Q = linalg.block_diag(
             *[jnp.array([[1.0, -1.0, 0.0], [-1.0, 1.0, 0.0], [0.0, 0.0, 0.0]])] * dim
         )
-        R = jnp.eye(B.shape[1]) * action_cost
+        R = jnp.diag(action_cost) 
 
         dims = swap_dims(A.shape[0], dim)
 

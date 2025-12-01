@@ -96,6 +96,24 @@ def lqg_model(x, ModelType):
             dt=1 / sampling_rate,
             dim=dim,
         )
+    elif ModelType == models.CorrelatedObservationSubjectiveActor:
+        sigma_target = numpyro.sample("sigma_target", dist.HalfNormal(1.0), sample_shape=(dim,))
+        sigma_cursor = numpyro.sample("sigma_cursor", dist.HalfNormal(1.0), sample_shape=(dim,))
+        subj_noise = numpyro.sample("subj_noise", dist.HalfNormal(1.0))
+        subj_vel_noise = numpyro.sample("subj_vel_noise", dist.HalfNormal(5.0))
+
+        model = ModelType(
+            action_variability=action_variability,
+            action_cost=action_cost,
+            sigma_target=sigma_target,
+            sigma_cursor=sigma_cursor,
+            corr_chol=L,
+            subj_noise=subj_noise,
+            subj_vel_noise=subj_vel_noise,
+            T=T,
+            dt=1 / sampling_rate,
+            dim=dim,
+        )
 
     # likelihood
     numpyro.sample("x", model.conditional_distribution(x), obs=x[:, 1:])
@@ -196,6 +214,26 @@ if __name__ == "__main__":
                 ]
             ),
             "jerk_cost": posterior_mean["jerk_cost"],
+        }
+    elif ModelType == models.CorrelatedObservationSubjectiveActor:
+        params = {
+            "sigma_target": jnp.stack([posterior_mean["sigma_target[0]"], posterior_mean["sigma_target[1]"]]),
+            "sigma_cursor": jnp.stack([posterior_mean["sigma_cursor[0]"], posterior_mean["sigma_cursor[1]"]]),
+            "corr_chol": jnp.array(
+                [
+                    [posterior_mean["L[0, 0]"], posterior_mean["L[0, 1]"]],
+                    [posterior_mean["L[1, 0]"], posterior_mean["L[1, 1]"]],
+                ]
+            ),
+            "action_cost": jnp.stack([posterior_mean["action_cost[0]"], posterior_mean["action_cost[1]"]]),
+            "action_variability": jnp.stack(
+                [
+                    posterior_mean["action_variability[0]"],
+                    posterior_mean["action_variability[1]"],
+                ]
+            ),
+            "subj_noise": posterior_mean["subj_noise"],
+            "subj_vel_noise": posterior_mean["subj_vel_noise"],
         }
 
 
