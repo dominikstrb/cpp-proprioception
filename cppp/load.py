@@ -75,7 +75,6 @@ def preprocess_data(df, lag=1):
     y_array = np.stack(block_arrays_y, axis=0)  # shape: (blocks, time, 2)
     print("Final shape of Y array:", y_array.shape)
 
-    
     if lag > 0:
         x_array = np.stack([x_array[:, :-lag, 0], x_array[:, lag:, 1]], axis=-1)
         y_array = np.stack([y_array[:, :-lag, 0], y_array[:, lag:, 1]], axis=-1)
@@ -103,3 +102,27 @@ def downsample_uniform_sample(block_df, factor=55):
     downsampled_df["Trajectory_ID"] = traj_id  # Ensure ID is retained correctly
 
     return downsampled_df
+
+
+def load_multisensory_data(data_path="data/multisensory/df_downsampled.csv"):
+    df = pd.read_csv(data_path)
+    print(f"Multisensory DataFrame loaded from {data_path} with shape:", df.shape)
+    return df
+
+
+def preprocess_multisensory_data(df, participant, condition, vis_noise):
+    df_sub = df[
+        (df["participant"] == participant)
+        & (df["type"] == condition)
+        & (df["vis_noise"] == vis_noise)
+    ]
+
+    data = []
+    for trial_num, df_trial in df_sub.groupby("trial_number"):
+        data.append(np.array([df_trial["cursory_pos"], df_trial["lefty_pos"]]).T)
+
+    lens = [d.shape[0] for d in data]
+    min_len = min(lens)
+    data = [d[:min_len] for d in data]
+
+    return np.stack(data)
