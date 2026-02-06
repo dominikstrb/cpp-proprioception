@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 
@@ -104,7 +105,8 @@ def downsample_uniform_sample(block_df, factor=55):
     return downsampled_df
 
 
-def load_multisensory_data(data_path="data/multisensory/df_downsampled.csv"):
+def load_multisensory_data(base_path="data"):
+    data_path = Path(base_path) / "multisensory/df_downsampled.csv"
     df = pd.read_csv(data_path)
     print(f"Multisensory DataFrame loaded from {data_path} with shape:", df.shape)
     return df
