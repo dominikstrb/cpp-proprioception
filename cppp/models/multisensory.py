@@ -111,3 +111,31 @@ class MultisensoryDelayModel(System):
             T=T,
         )
         super().__init__(actor=spec, dynamics=spec)
+
+
+class UnisensoryDelayModelForceDynamics(System):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigma=1.0,
+        action_variability=0.5,
+        action_cost=0.1,
+        dt=0.075,
+        delay=1,
+        T=1000,
+    ):
+
+        A = jnp.array([[1.0, 0., 0.], [0., 1.0, dt], [0., 0., 1.0]])
+        B = dt * jnp.array([[0.0], [0.0], [1.0]])
+        F = jnp.array([[1.0, -1.0, 0.0]])
+        # TODO: proper noise model
+        V = jnp.diag(jnp.array([process_noise, 0.0, action_variability]))
+        Q = jnp.array([[1.0, -1.0, 0.], [-1.0, 1.0, 0.], [0., 0., 0.]])
+        R = jnp.array([[action_cost]])
+
+        W_visual = jnp.diag(jnp.array([sigma]))
+
+        spec = multisensory_delay_system(
+            A, B, V, [F], [W_visual], Q, R, delays=[delay], T=T
+        )
+        super().__init__(actor=spec, dynamics=spec)

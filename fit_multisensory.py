@@ -23,14 +23,14 @@ def parse_args():
         "--prop_delay",
         type=int,
         default=1,
-        help="Delay in proprioceptive signal (in th emodel)",
+        help="Delay in proprioceptive signal (in the model)",
     )
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     parser.add_argument(
-        "--nwarmup", type=int, default=1_000, help="Number of warump steps for NUTS."
+        "--nwarmup", type=int, default=2_500, help="Number of warump steps for NUTS."
     )
     parser.add_argument(
-        "--nsamp", type=int, default=1_000, help="Number of samples for NUTS."
+        "--nsamp", type=int, default=2_500, help="Number of samples for NUTS."
     )
     parser.add_argument("--nchain", type=int, default=4, help="Number of chains.")
     parser.add_argument("--plot", action=argparse.BooleanOptionalAction)
@@ -42,7 +42,7 @@ def unisensory_model(x, delay=1, dt=0.075):
     T = x.shape[1]
 
     # priors
-    sigma = numpyro.sample("sigma", dist.HalfNormal(5.0))
+    sigma = numpyro.sample("sigma", dist.HalfNormal(10.0))
     action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
     action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
 
@@ -61,9 +61,9 @@ def unisensory_model(x, delay=1, dt=0.075):
 
 def multisensory_model(x, delays, dt=0.075):
     T = x.shape[1]
-    
+
     # priors
-    sigmas = numpyro.sample("sigmas", dist.HalfNormal(5.0).expand([2]))
+    sigmas = numpyro.sample("sigmas", dist.HalfNormal(10.0).expand([2]))
     action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
     action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
 
@@ -72,7 +72,7 @@ def multisensory_model(x, delays, dt=0.075):
         sigmas=sigmas,
         action_variability=action_variability,
         action_cost=action_cost,
-        delays=delays,
+        delays=[delays["prop"], delays["vis"]],
         dt=dt,
         T=T - 1,
     )
@@ -102,12 +102,15 @@ if __name__ == "__main__":
         # fit multisensory model
         nuts_kernel = NUTS(multisensory_model)
         mcmc_xy = MCMC(
-            nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4
+            nuts_kernel,
+            num_warmup=args.nwarmup,
+            num_samples=args.nsamp,
+            num_chains=4,
         )
         mcmc_xy.run(
             random.PRNGKey(args.seed),
             data,
-            delays=[delays["prop"], delays["vis"]],
+            delays=delays,
             dt=0.075,
         )
 
@@ -115,7 +118,7 @@ if __name__ == "__main__":
         inference_data = az.from_numpyro(mcmc_xy)
         if args.save:
             inference_data.to_netcdf(
-                f"results/multisensory-mcmc-multi-{vis_noise}-{args.seed}.nc"
+                f"results/multisensory-mcmc-{args.participant}-multi-{vis_noise}-{args.seed}.nc"
             )
 
         # fit unisensory conditions
@@ -148,5 +151,5 @@ if __name__ == "__main__":
 
             if args.save:
                 inference_data.to_netcdf(
-                    f"results/multisensory-mcmc-{condition}-{vis_noise}-{args.seed}.nc"
+                    f"results/multisensory-mcmc-{args.participant}-{condition}-{vis_noise}-{args.seed}.nc"
                 )
