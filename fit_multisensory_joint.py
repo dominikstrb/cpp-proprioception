@@ -1,5 +1,5 @@
 import argparse
-from jax import random
+from jax import random, numpy as jnp
 import numpyro
 from numpyro.infer import MCMC, NUTS
 from numpyro import distributions as dist
@@ -126,7 +126,50 @@ def no_integration_model(data, delays, dt=0.075):
             obs=x[:, 1:],
         )
 
-models = {"optimal": optimal_integration_model, "no_integration": no_integration_model}
+
+def equal_integration_model(data, delays, dt=0.075):
+    # priors
+    sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
+    sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
+
+    action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
+    action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
+
+    for (condition, vis_noise), x in data.items():
+        T = x.shape[1]
+
+        if condition == "multi":
+            sigma = jnp.sqrt((sigma_vis[vis_noise - 1] ** 2 + sigma_prop**2) / 2)
+            model = MultisensoryDelayModel(
+                process_noise=1.2,
+                sigmas=[sigma, sigma],
+                action_variability=action_variability,
+                action_cost=action_cost,
+                delays=[delays["prop"], delays["vis"]],
+                dt=dt,
+                T=T - 1,
+            )
+        else:
+            delay = delays[condition]
+            model = UnisensoryDelayModel(
+                process_noise=1.2,
+                sigma=(sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]),
+                action_variability=action_variability,
+                action_cost=action_cost,
+                delay=delay,
+                dt=dt,
+                T=T - 1,
+            )
+
+        # likelihood
+        numpyro.sample(
+            f"x_{condition}_{vis_noise}",
+            model.conditional_distribution(x),
+            obs=x[:, 1:],
+        )
+
+
+models = {"optimal": optimal_integration_model, "no_integration": no_integration_model, "equal_integration": equal_integration_model}
 
 if __name__ == "__main__":
     args = parse_args()
