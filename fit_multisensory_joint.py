@@ -33,7 +33,6 @@ def parse_args():
         "--nsamp", type=int, default=2_500, help="Number of samples for NUTS."
     )
     parser.add_argument("--nchain", type=int, default=4, help="Number of chains.")
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "--model", type=str, default="optimal"
     )  # TODO: model with separate parameters for multisensory condition, to test whether the same noise parameters can explain both unisensory and multisensory conditions
