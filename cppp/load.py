@@ -106,7 +106,7 @@ def downsample_uniform_sample(block_df, factor=55):
 
 
 def load_multisensory_data(base_path="data"):
-    data_path = Path(base_path) / "multisensory/df_all_phases_2participants.csv"
+    data_path = Path(base_path) / "multisensory/df_all_phases_all_participants.csv"
     df = pd.read_csv(data_path)
     print(f"Multisensory DataFrame loaded from {data_path} with shape:", df.shape)
     return df
