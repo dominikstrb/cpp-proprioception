@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "lqg (==0.2.11)",
+    "lqg @ git+https://github.com/RothkopfLab/lqg.git#main",
     "matplotlib (>=3.10.3,<4.0.0)",
     "seaborn (>=0.13.2,<0.14.0)",
     "arviz (>=0.22.0,<0.23.0)"

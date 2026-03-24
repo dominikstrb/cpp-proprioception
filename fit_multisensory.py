@@ -1,7 +1,7 @@
 import argparse
 from jax import random, numpy as jnp
 import numpyro
-from numpyro.infer import MCMC, NUTS
+from numpyro.infer import MCMC, NUTS, Predictive
 from numpyro import distributions as dist
 import arviz as az
 
@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         "--vis_delay", type=int, default=2, help="Delay in visual signal (in the model)"
     )
-    parser.add_argument("--seed", type=int, default=1, help="Random seed")
+    parser.add_argument("--seed", type=int, default=7453, help="Random seed")
     parser.add_argument(
         "--nwarmup", type=int, default=2_500, help="Number of warump steps for NUTS."
     )
@@ -44,7 +44,7 @@ def filename_from_args(args):
     return indicator
 
 
-def optimal_integration_model(data, delays, dt=0.075):
+def optimal_integration_model(data, delays, dt=0.075, obs=True):
 
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
@@ -80,12 +80,12 @@ def optimal_integration_model(data, delays, dt=0.075):
         # likelihood
         numpyro.sample(
             f"x_{condition}_{vis_noise}",
-            model.conditional_distribution(x),
-            obs=x[:, 1:],
+            model.to_numpyro(xdim=x.shape[-1]),
+            obs=x if obs else None,
         )
 
 
-def no_integration_model(data, delays, dt=0.075):
+def no_integration_model(data, delays, dt=0.075, obs=True):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
     sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
@@ -121,12 +121,12 @@ def no_integration_model(data, delays, dt=0.075):
         # likelihood
         numpyro.sample(
             f"x_{condition}_{vis_noise}",
-            model.conditional_distribution(x),
-            obs=x[:, 1:],
+            model.to_numpyro(xdim=x.shape[-1]),
+            obs=x if obs else None,
         )
 
 
-def equal_integration_model(data, delays, dt=0.075):
+def equal_integration_model(data, delays, dt=0.075, obs=True):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
     sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
@@ -163,12 +163,16 @@ def equal_integration_model(data, delays, dt=0.075):
         # likelihood
         numpyro.sample(
             f"x_{condition}_{vis_noise}",
-            model.conditional_distribution(x),
-            obs=x[:, 1:],
+            model.to_numpyro(xdim=x.shape[-1]),
+            obs=x if obs else None,
         )
 
 
-models = {"optimal": optimal_integration_model, "no_integration": no_integration_model, "equal_integration": equal_integration_model}
+models = {
+    "optimal": optimal_integration_model,
+    "no_integration": no_integration_model,
+    "equal_integration": equal_integration_model,
+}
 
 if __name__ == "__main__":
     args = parse_args()
@@ -191,16 +195,27 @@ if __name__ == "__main__":
 
     # fit joint model
     nuts_kernel = NUTS(models[args.model])
-    mcmc_xy = MCMC(
+    mcmc = MCMC(
         nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4
     )
-    mcmc_xy.run(
+    mcmc.run(
         random.PRNGKey(args.seed),
         data,
         delays=delays,
         dt=0.075,
     )
 
+    predictive = Predictive(models[args.model], mcmc.get_samples())
+    samples_predictive = predictive(
+        random.PRNGKey(args.seed),
+        data,
+        delays=delays,
+        dt=0.075,
+        obs=False,
+    )
+
     # save model fit
-    inference_data = az.from_numpyro(mcmc_xy)
+    inference_data = az.from_numpyro(mcmc, posterior_predictive=samples_predictive)
     inference_data.to_netcdf(f"results/multisensory-mcmc-{filename_from_args(args)}.nc")
+
+    print(f"Finished fitting model {args.model} for participant {args.participant}!")

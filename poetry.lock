@@ -418,16 +418,20 @@ description = "(Inverse) optimal control for linear-quadratic Gaussian systems"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-files = [
-    {file = "lqg-0.2.11-py3-none-any.whl", hash = "sha256:a244d9fd238fe28ba24e479d1199b50479f3eae8710e841176f59a25cb944cf0"},
-    {file = "lqg-0.2.11.tar.gz", hash = "sha256:dda7231717305de384cd779e23e2bc195e501047a2c48e1a59cb562a055a6248"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 arviz = ">=0.16.1"
 jax = ">=0.4.13"
 matplotlib = ">=3.2.2"
 numpyro = ">=0.12.1"
+
+[package.source]
+type = "git"
+url = "https://github.com/RothkopfLab/lqg.git"
+reference = "main"
+resolved_reference = "976695d75c5ef97d7b1e30b57d6a17dcf4f65961"
 
 [[package]]
 name = "matplotlib"
@@ -523,10 +527,10 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.21.2", markers = "python_version >= \"3.10\""},
-    {version = ">=1.23.3", markers = "python_version >= \"3.11\""},
     {version = ">=2.1.0", markers = "python_version >= \"3.13\""},
     {version = ">=1.26.0", markers = "python_version == \"3.12\""},
+    {version = ">=1.23.3", markers = "python_version == \"3.11\""},
+    {version = ">=1.21.2", markers = "python_version == \"3.10\""},
 ]
 
 [package.extras]
@@ -778,9 +782,9 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.22.4", markers = "python_version < \"3.11\""},
-    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
     {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
+    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
+    {version = ">=1.22.4", markers = "python_version < \"3.11\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1305,4 +1309,4 @@ test = ["hypothesis", "packaging", "preliz (>=0.19)", "pytest", "pytest-cov", "s
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "d984717723add208b3a5d899d1fa2665986bbde3915676cfcada58f4d195c853"
+content-hash = "e30202e8fba9b8e483747fd6203b3ebef5a6317814fb81e27429caa2b6a77743"
