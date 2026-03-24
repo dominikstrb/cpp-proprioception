@@ -122,3 +122,18 @@ if __name__ == "__main__":
     f.suptitle(f"Participant: {args.participant}")
     f.tight_layout()
     f.savefig(f"results/multisensory-simulations-{filename_from_args(args)}.png")
+
+
+    # get current participant's data
+    df = df[df["participant"] == args.participant]
+
+    # compute tracking error
+    df["tracking_error"] = df["righty_pos"] - df["lefty_pos"]
+    df["tracking_mse"] = df["tracking_error"] ** 2
+
+    f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True)
+    # simulate calibration phase
+    for trial_number, trial_df in df[df["phase"] == "calibration"].groupby("trial_number"):
+        offset = trial_df["cursor_offset"].iloc[0]
+
+        
