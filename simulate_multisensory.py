@@ -2,14 +2,68 @@ import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
 from lqg import xcorr
+from jax import random, numpy as jnp, jit
 
 from cppp.load import preprocess_multisensory_data, load_multisensory_data
+from cppp.models.multisensory import BiasMultisensoryDelayModel
 from fit_multisensory import filename_from_args, parse_args
+
 
 if __name__ == "__main__":
     args = parse_args()
     # we are going to load all models, so we don't need to specify one here
     del args.model
+
+    delays = {"vis": args.vis_delay, "prop": args.prop_delay}
+
+    def simulate_calibration_phase(bias, vis_noise, model_name, params):
+        if model_name == "optimal":
+            model = BiasMultisensoryDelayModel(
+                process_noise=1.2,
+                sigmas=[params["sigma_prop"], params[f"sigma_vis[{vis_noise - 1}]"]],
+                action_variability=params["action_variability"],
+                action_cost=params["action_cost"],
+                delays=[delays["prop"], delays["vis"]],
+                dt=0.075,
+                T=168,
+            )
+        elif model_name == "no_integration":
+            model = BiasMultisensoryDelayModel(
+                process_noise=1.2,
+                sigmas=[params["sigma_prop"]],
+                action_variability=params["action_variability"],
+                action_cost=params["action_cost"],
+                delays=[delays["prop"]],
+                dt=0.075,
+                T=168,
+            )
+        elif model_name == "equal_integration":
+            sigma = jnp.sqrt(
+                (params["sigma_prop"] ** 2 + params[f"sigma_vis[{vis_noise - 1}]"] ** 2)
+                / 2
+            )
+            model = BiasMultisensoryDelayModel(
+                process_noise=1.2,
+                sigmas=[sigma, sigma],
+                action_variability=params["action_variability"],
+                action_cost=params["action_cost"],
+                delays=[delays["prop"], delays["vis"]],
+                dt=0.075,
+                T=168,
+            )
+        else:
+            raise ValueError(f"Unknown model name: {model_name}")
+
+        x = model.simulate(
+            rng_key=random.PRNGKey(0),
+            n=250,
+            x0=jnp.array([0.0, 0.0, bias] + [0.0] * (model.xdim - 3)),
+        )
+        return x
+
+    jit_simulate = jit(
+        simulate_calibration_phase, static_argnames=["model_name", "vis_noise"]
+    )
 
     # load the inference data for all models
     models = {
@@ -62,7 +116,7 @@ if __name__ == "__main__":
                 vis_noise=vis_noise,
             )
 
-    f, ax = plt.subplots(4, 2, figsize=(10, 16), sharey=True)
+    f, ax = plt.subplots(4, 2, figsize=(10, 16), sharey=True, sharex=True)
 
     for k, (model_name, model) in enumerate(models.items()):
 
@@ -123,7 +177,6 @@ if __name__ == "__main__":
     f.tight_layout()
     f.savefig(f"results/multisensory-simulations-{filename_from_args(args)}.png")
 
-
     # get current participant's data
     df = df[df["participant"] == args.participant]
 
@@ -131,9 +184,42 @@ if __name__ == "__main__":
     df["tracking_error"] = df["righty_pos"] - df["lefty_pos"]
     df["tracking_mse"] = df["tracking_error"] ** 2
 
-    f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True)
     # simulate calibration phase
-    for trial_number, trial_df in df[df["phase"] == "calibration"].groupby("trial_number"):
+    f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True, sharex=True)
+    for (trial_number, vis_noise), trial_df in df[df["phase"] == "calibration"].groupby(
+        ["trial_number", "vis_noise"]
+    ):
         offset = trial_df["cursor_offset"].iloc[0]
 
-        
+        ax[0].scatter(
+            trial_number,
+            trial_df["tracking_error"].mean(),
+            color="C0" if vis_noise == 1 else "C1",
+        )
+        ax[0].set_ylabel("Mean tracking error")
+
+        for k, (model_name, model) in enumerate(models.items()):
+
+            summary = az.summary(model)
+            # get posterior mean
+            posterior_mean = summary["mean"].to_dict()
+
+            for vis_noise in [1, 2]:
+
+                x = jit_simulate(offset, vis_noise, model_name, posterior_mean)
+                error = jnp.mean((x[..., 0] - x[..., 1]))
+
+                ax[k + 1].scatter(
+                    trial_number, error, color="C0" if vis_noise == 1 else "C1"
+                )
+                ax[k + 1].set_ylabel("Mean tracking error")
+                ax[k + 1].set_title(f"{model_name.capitalize()} model")
+
+                # plt.axhline(0, color="black", linestyle="--")
+    ax[-1].set_xlabel("Trial number")
+    ax[0].set_title("Data")
+    f.suptitle(f"Participant: {args.participant}")
+    f.tight_layout()
+    f.savefig(
+        f"results/multisensory-simulations-calibration-{filename_from_args(args)}.png"
+    )
