@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from lqg import xcorr
 from jax import random, numpy as jnp, jit
+import pandas as pd
 
 from cppp.load import preprocess_multisensory_data, load_multisensory_data
 from cppp.models.multisensory import BiasMultisensoryDelayModel
@@ -56,7 +57,7 @@ if __name__ == "__main__":
 
         x = model.simulate(
             rng_key=random.PRNGKey(0),
-            n=250,
+            n=20,
             x0=jnp.array([0.0, 0.0, bias] + [0.0] * (model.xdim - 3)),
         )
         return x
@@ -186,6 +187,7 @@ if __name__ == "__main__":
 
     # simulate calibration phase
     f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True, sharex=True)
+    dfs = []
     for (trial_number, vis_noise), trial_df in df[df["phase"] == "calibration"].groupby(
         ["trial_number", "vis_noise"]
     ):
@@ -209,6 +211,23 @@ if __name__ == "__main__":
                 x = jit_simulate(offset, vis_noise, model_name, posterior_mean)
                 error = jnp.mean((x[..., 0] - x[..., 1]))
 
+                for rep, x_i in enumerate(x):
+                    dfs.append(
+                        pd.DataFrame(
+                            {
+                                "participant": args.participant,
+                                "phase": "calibration",
+                                "cursor_offset": offset,
+                                "vis_noise": vis_noise,
+                                "trial_number": trial_number,
+                                "model": model_name,
+                                "righty_pos": x_i[:, 0],
+                                "lefty_pos": x_i[:, 1],
+                                "repetition": rep,
+                            }
+                        )
+                    )
+
                 ax[k + 1].scatter(
                     trial_number, error, color="C0" if vis_noise == 1 else "C1"
                 )
@@ -223,3 +242,7 @@ if __name__ == "__main__":
     f.savefig(
         f"results/multisensory-simulations-calibration-{filename_from_args(args)}.png"
     )
+
+    df = pd.concat(dfs, ignore_index=True)
+    df.to_csv(f"results/multisensory-simulations-calibration-{filename_from_args(args)}.csv", index=False)
+
