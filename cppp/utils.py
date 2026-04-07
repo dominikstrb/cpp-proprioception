@@ -1,5 +1,8 @@
 import numpy as np
 from lqg import xcorr
+import xarray as xr
+
+from cppp import models
 
 
 # --- Cross-correlation computation ---
@@ -21,3 +24,32 @@ def compute_crosscorr_stats(array_data, sampling_rate, max_lag=10):
     corr = float(avg_data[peak_idx_data])
 
     return lag_times, avg_data, std_data, lag, corr
+
+
+def concat_log_likelihoods(model):
+    var_names = ["x_multi_1", "x_multi_2", "x_vis_1", "x_vis_2", "x_prop_1", "x_prop_2"]
+
+    x = np.concatenate(
+        [model.log_likelihood[f"{var_name}"].to_numpy() for var_name in var_names],
+        axis=-1,
+    )
+
+    model.log_likelihood = xr.Dataset(
+        data_vars={
+            "x": (
+                [
+                    "chain",
+                    "draw",
+                    "trial",
+                ],
+                x,
+            )
+        },
+        coords={
+            "chain": range(x.shape[0]),
+            "draw": range(x.shape[1]),
+            "trial": range(x.shape[-1]),
+        },
+    )
+
+    return model
