@@ -105,7 +105,9 @@ class MultisensoryDelayModelPointMassDynamics(System):
         A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
         B_c = jnp.array([[0.0], [0.0], [1.0 / tau]])
 
+        # discretize dynamics
         A, B = discretize_linear_system(A_c, B_c, dt)
+        # discretize noise model using van Loan's method, which accounts for the effect of the control input on the noise covariance (makes fitting more stable)
         V = linalg.cholesky(make_psd(van_loan_discretization(A_c, action_variability * B_c, dt)))
 
         A = linalg.block_diag(jnp.eye(1), A)
@@ -113,7 +115,6 @@ class MultisensoryDelayModelPointMassDynamics(System):
         V = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
 
         F = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
-        # TODO: proper noise model
         Q = jnp.array([[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
         R = jnp.array([[action_cost]])
 
@@ -121,6 +122,76 @@ class MultisensoryDelayModelPointMassDynamics(System):
             A, B, V, [F for _ in sigmas], [sigma * jnp.eye(2) for sigma in sigmas], Q, R, delays=delays, T=T
         )
         super().__init__(actor=spec, dynamics=spec)
+
+
+class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
+    def __init__(
+        self,
+        process_noise=1.0,
+        subj_process_noise=1.0,
+        subj_vel_process_noise=0.0,
+        sigmas=[1.0, 1.0],
+        action_variability=0.5,
+        action_cost=0.1,
+        damping=0.0015,
+        m=1.0,
+        tau=0.066,
+        dt=0.075,
+        delays=[1, 1],
+        T=1000,
+    ):
+
+        # continuous-time dynamics of a point mass with viscous damping and a first-order muscle activation dynamics
+        A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
+        B_c = jnp.array([[0.0], [0.0], [1.0 / tau]])
+
+        # discretize dynamics
+        A, B = discretize_linear_system(A_c, B_c, dt)
+        # discretize noise model using van Loan's method, which accounts for the effect of the control input on the noise covariance (makes fitting more stable)
+        V = linalg.cholesky(make_psd(van_loan_discretization(A_c, action_variability * B_c, dt)))
+
+        A_dynamics = linalg.block_diag(jnp.eye(1), A)
+        B_dynamics = jnp.vstack([jnp.zeros((1, 1)), B])
+
+        # In the subjective internal model, there is a velocity component to the random walk
+        A_actor = linalg.block_diag(jnp.eye(1), A, jnp.eye(1))
+        A_actor = A_actor.at[0, -1].set(dt)
+        B_actor = jnp.vstack([jnp.zeros((1, 1)), B, jnp.zeros((1, 1))])
+
+        V_actor = linalg.block_diag(
+            jnp.diag(jnp.array([subj_process_noise])), V, jnp.diag(jnp.array([subj_vel_process_noise]))
+        )
+        V_dynamics = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
+
+        F = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
+        F_actor = jnp.hstack([F, jnp.zeros((2, 1))])
+        Q_dynamics = jnp.array([[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
+        Q_actor = linalg.block_diag(Q_dynamics, jnp.zeros((1, 1)))
+        R = jnp.array([[action_cost]])
+
+        actor = multisensory_delay_system(
+            A_actor,
+            B_actor,
+            V_actor,
+            [F_actor for _ in sigmas],
+            [sigma * jnp.eye(2) for sigma in sigmas],
+            Q_actor,
+            R,
+            delays=delays,
+            T=T,
+        )
+        dynamics = multisensory_delay_system(
+            A_dynamics,
+            B_dynamics,
+            V_dynamics,
+            [F for _ in sigmas],
+            [sigma * jnp.eye(2) for sigma in sigmas],
+            Q_dynamics,
+            R,
+            delays=delays,
+            T=T,
+        )
+        super().__init__(actor=actor, dynamics=dynamics)
 
 
 class UnisensoryDelayModelForceDynamics(MultisensoryDelayModelPointMassDynamics):
