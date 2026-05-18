@@ -6,36 +6,48 @@ from jax import random, numpy as jnp, jit
 import pandas as pd
 
 from cppp.load import preprocess_multisensory_data, load_multisensory_data
-from cppp.models.multisensory import BiasMultisensoryDelayModel
+from cppp.models import multisensory
 from fit_multisensory import filename_from_args, parse_args
 
+dt = 0.075
 
 if __name__ == "__main__":
     args = parse_args()
     # we are going to load all models, so we don't need to specify one here
     del args.model
 
+    print(args)
+
+    model_class = getattr(multisensory, "Bias" + args.model_class)
+    print(model_class)
+
     delays = {"vis": args.vis_delay, "prop": args.prop_delay}
 
-    def simulate_calibration_phase(bias, vis_noise, model_name, params):
+    def simulate_calibration_phase(
+        bias,
+        vis_noise,
+        model_name,
+        params,
+        model_class=multisensory.BiasMultisensoryDelayModelPointMassDynamics,
+    ):
         if model_name == "optimal":
-            model = BiasMultisensoryDelayModel(
+            model = model_class(
                 process_noise=1.2,
                 sigmas=[params["sigma_prop"], params[f"sigma_vis[{vis_noise - 1}]"]],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
                 delays=[delays["prop"], delays["vis"]],
-                dt=0.075,
+                dt=dt,
                 T=168,
             )
         elif model_name == "no_integration":
-            model = BiasMultisensoryDelayModel(
+            model = model_class(
                 process_noise=1.2,
                 sigmas=[params["sigma_prop"]],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
                 delays=[delays["prop"]],
-                dt=0.075,
+                dt=dt,
                 T=168,
             )
         elif model_name == "equal_integration":
@@ -43,13 +55,13 @@ if __name__ == "__main__":
                 (params["sigma_prop"] ** 2 + params[f"sigma_vis[{vis_noise - 1}]"] ** 2)
                 / 2
             )
-            model = BiasMultisensoryDelayModel(
+            model = model_class(
                 process_noise=1.2,
                 sigmas=[sigma, sigma],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
                 delays=[delays["prop"], delays["vis"]],
-                dt=0.075,
+                dt=dt,
                 T=168,
             )
         else:
@@ -58,18 +70,20 @@ if __name__ == "__main__":
         x = model.simulate(
             rng_key=random.PRNGKey(0),
             n=20,
-            x0=jnp.array([0.0, 0.0, bias] + [0.0] * (model.xdim - 3)),
+            # TODO: this does not work anymore for the standard model without point mass dynamics, because it has a different state space dimensionality
+            x0=jnp.array([0.0, 0.0, 0.0, 0.0, bias] + [0.0] * (model.xdim - 5)),
         )
         return x
 
     jit_simulate = jit(
-        simulate_calibration_phase, static_argnames=["model_name", "vis_noise"]
+        simulate_calibration_phase,
+        static_argnames=["model_name", "vis_noise", "model_class"],
     )
 
     # load the inference data for all models
     models = {
         model_name: az.from_netcdf(
-            f"results/multisensory-mcmc-{args.participant}_{args.prop_delay}_{args.vis_delay}_{args.seed}_{args.nwarmup}_{args.nsamp}_{args.nchain}_{model_name}.nc"
+            f"results/multisensory-mcmc-{args.participant}_{args.prop_delay}_{args.vis_delay}_{args.seed}_{args.nwarmup}_{args.nsamp}_{args.nchain}_{model_name}_{args.model_class}.nc"
         )
         for model_name in ["optimal", "no_integration", "equal_integration"]
     }
@@ -82,17 +96,17 @@ if __name__ == "__main__":
 
     # assert that all r-hats are below 1.1
     for model_name, summary in summaries.items():
-        assert (
-            summary["r_hat"] < 1.1
-        ).all(), f"Model {model_name} has r-hat values above 1.1!"
+        assert (summary["r_hat"] < 1.1).all(), (
+            f"Model {model_name} has r-hat values above 1.1!"
+        )
 
     # perform model comparison for all data variables separately
     var_names = ["x_multi_1", "x_multi_2", "x_vis_1", "x_vis_2", "x_prop_1", "x_prop_2"]
-    for var_name in var_names:
-        comp_df = az.compare(models, var_name=var_name)
-        print(comp_df)
-        axes = az.plot_compare(comp_df=comp_df)
-        axes.set_title(f"Model comparison for {var_name}")
+    # for var_name in var_names:
+    #     comp_df = az.compare(models, var_name=var_name)
+    #     print(comp_df)
+    #     axes = az.plot_compare(comp_df=comp_df)
+    #     axes.set_title(f"Model comparison for {var_name}")
 
     # TODO: also perform model comparison for all data variables together (at the moment seems to take up too much memory)
     # for name, inference_data in models.items():
@@ -119,8 +133,8 @@ if __name__ == "__main__":
 
     f, ax = plt.subplots(4, 2, figsize=(10, 16), sharey=True, sharex=True)
 
+    ppc_dfs = []
     for k, (model_name, model) in enumerate(models.items()):
-
         # print(model.log_likelihood["x_multi_1"].shape)
         print(f"Simulating model: {model_name}")
         # print(model.posterior)
@@ -130,7 +144,6 @@ if __name__ == "__main__":
         posterior_mean = summary["mean"].to_dict()
 
         for i, condition in enumerate(["multi", "vis", "prop"]):
-
             for j, vis_noise in enumerate([1, 2]):
                 sim_data = model.posterior_predictive[f"x_{condition}_{vis_noise}"]
 
@@ -142,18 +155,41 @@ if __name__ == "__main__":
                 vels = np.diff(data[(condition, vis_noise)], axis=-2)
                 lags, correls = xcorr(vels[..., 1], vels[..., 0], maxlags=50)
 
+                ppc_dfs.append(
+                    pd.DataFrame(
+                        {
+                            "model": model_name,
+                            "condition": condition,
+                            "vis_noise": vis_noise,
+                            "lag": lags * dt,
+                            "correlation": sim_correls.mean(axis=(0, 1)),
+                        }
+                    )
+                )
+
                 # plot the cross-correlations for the real data and the simulated data
                 if (
                     k == 0
-                ):  # only plot the real data one (when plotting the first model)
+                ):  # only plot and save the real data once (when plotting the first model)
+                    ppc_dfs.append(
+                        pd.DataFrame(
+                            {
+                                "model": "data",
+                                "condition": condition,
+                                "vis_noise": vis_noise,
+                                "lag": lags * dt,
+                                "correlation": correls.mean(axis=0),
+                            }
+                        )
+                    )
                     ax[0, j].plot(
-                        lags[51:] * 0.075,
+                        lags[51:] * dt,
                         correls.mean(axis=0)[51:],
                         label=f"{condition}",
                         color=f"C{i}",
                     )
                 ax[k + 1, j].plot(
-                    lags[51:] * 0.075,
+                    lags[51:] * dt,
                     sim_correls.mean(axis=(0, 1))[51:],
                     label=f"{condition}",
                     color=f"C{i}",
@@ -166,6 +202,12 @@ if __name__ == "__main__":
                 ax[k + 1, j].set_title(
                     f"{model_name.capitalize()} model - noise level {vis_noise}"
                 )
+
+    ppc_df = pd.concat(ppc_dfs, ignore_index=True)
+    ppc_df.to_csv(
+        f"results/ppc/multisensory-simulations-ppc-{filename_from_args(args)}.csv",
+        index=False,
+    )
 
     ax[k + 1, 0].set_xlabel("Lag (s)")
     ax[k + 1, 1].set_xlabel("Lag (s)")
@@ -185,6 +227,7 @@ if __name__ == "__main__":
     df["tracking_error"] = df["righty_pos"] - df["lefty_pos"]
     df["tracking_mse"] = df["tracking_error"] ** 2
 
+    print("Simulating calibration phase for all models...")
     # simulate calibration phase
     f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True, sharex=True)
     dfs = []
@@ -201,14 +244,18 @@ if __name__ == "__main__":
         ax[0].set_ylabel("Mean tracking error")
 
         for k, (model_name, model) in enumerate(models.items()):
-
             summary = az.summary(model)
             # get posterior mean
             posterior_mean = summary["mean"].to_dict()
 
             for vis_noise in [1, 2]:
-
-                x = jit_simulate(offset, vis_noise, model_name, posterior_mean)
+                x = jit_simulate(
+                    offset,
+                    vis_noise,
+                    model_name,
+                    posterior_mean,
+                    model_class=model_class,
+                )
                 error = jnp.mean((x[..., 0] - x[..., 1]))
 
                 for rep, x_i in enumerate(x):
@@ -240,9 +287,11 @@ if __name__ == "__main__":
     f.suptitle(f"Participant: {args.participant}")
     f.tight_layout()
     f.savefig(
-        f"results/multisensory-simulations-calibration-{filename_from_args(args)}.png"
+        f"results/calibration/multisensory-simulations-calibration-{filename_from_args(args)}.png"
     )
 
     df = pd.concat(dfs, ignore_index=True)
-    df.to_csv(f"results/multisensory-simulations-calibration-{filename_from_args(args)}.csv", index=False)
-
+    df.to_csv(
+        f"results/calibration/multisensory-simulations-calibration-{filename_from_args(args)}.csv",
+        index=False,
+    )

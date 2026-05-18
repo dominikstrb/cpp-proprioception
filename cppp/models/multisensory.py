@@ -86,6 +86,19 @@ class MultisensoryDelayModel(System):
         super().__init__(actor=spec, dynamics=spec)
 
 
+def point_mass_dynamics_matrices(damping, m, tau, action_variability, dt):
+    # continuous-time dynamics of a point mass with viscous damping and a first-order muscle activation dynamics
+    A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
+    B_c = jnp.array([[0.0], [0.0], [1.0 / tau]])
+
+    # discretize dynamics
+    A, B = discretize_linear_system(A_c, B_c, dt)
+    # discretize noise model using van Loan's method, which accounts for the effect of the control input on the noise covariance (makes fitting more stable)
+    V = linalg.cholesky(make_psd(van_loan_discretization(A_c, action_variability * B_c, dt)))
+
+    return A, B, V
+
+
 class MultisensoryDelayModelPointMassDynamics(System):
     def __init__(
         self,
@@ -101,14 +114,7 @@ class MultisensoryDelayModelPointMassDynamics(System):
         T=1000,
     ):
 
-        # continuous-time dynamics of a point mass with viscous damping and a first-order muscle activation dynamics
-        A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
-        B_c = jnp.array([[0.0], [0.0], [1.0 / tau]])
-
-        # discretize dynamics
-        A, B = discretize_linear_system(A_c, B_c, dt)
-        # discretize noise model using van Loan's method, which accounts for the effect of the control input on the noise covariance (makes fitting more stable)
-        V = linalg.cholesky(make_psd(van_loan_discretization(A_c, action_variability * B_c, dt)))
+        A, B, V = point_mass_dynamics_matrices(damping, m, tau, action_variability, dt)
 
         A = linalg.block_diag(jnp.eye(1), A)
         B = jnp.vstack([jnp.zeros((1, 1)), B])
@@ -141,15 +147,9 @@ class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
         T=1000,
     ):
 
-        # continuous-time dynamics of a point mass with viscous damping and a first-order muscle activation dynamics
-        A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
-        B_c = jnp.array([[0.0], [0.0], [1.0 / tau]])
+        A, B, V = point_mass_dynamics_matrices(damping, m, tau, action_variability, dt)
 
-        # discretize dynamics
-        A, B = discretize_linear_system(A_c, B_c, dt)
-        # discretize noise model using van Loan's method, which accounts for the effect of the control input on the noise covariance (makes fitting more stable)
-        V = linalg.cholesky(make_psd(van_loan_discretization(A_c, action_variability * B_c, dt)))
-
+        # add target dimension to the dynamics
         A_dynamics = linalg.block_diag(jnp.eye(1), A)
         B_dynamics = jnp.vstack([jnp.zeros((1, 1)), B])
 
@@ -165,7 +165,9 @@ class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
 
         F = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
         F_actor = jnp.hstack([F, jnp.zeros((2, 1))])
-        Q_dynamics = jnp.array([[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
+        Q_dynamics = jnp.array(
+            [[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+        )
         Q_actor = linalg.block_diag(Q_dynamics, jnp.zeros((1, 1)))
         R = jnp.array([[action_cost]])
 
@@ -192,34 +194,6 @@ class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
             T=T,
         )
         super().__init__(actor=actor, dynamics=dynamics)
-
-
-class UnisensoryDelayModelForceDynamics(MultisensoryDelayModelPointMassDynamics):
-    def __init__(
-        self,
-        process_noise=1.0,
-        sigma=1.0,
-        action_variability=0.5,
-        action_cost=0.1,
-        damping=0.0015,
-        m=1.0,
-        tau=0.066,
-        dt=0.075,
-        delay=1,
-        T=1000,
-    ):
-        super().__init__(
-            process_noise=process_noise,
-            sigmas=[sigma],
-            action_variability=action_variability,
-            action_cost=action_cost,
-            damping=damping,
-            m=m,
-            tau=tau,
-            dt=dt,
-            delays=[delay],
-            T=T,
-        )
 
 
 class BiasMultisensoryDelayModel(System):
@@ -260,6 +234,71 @@ class BiasMultisensoryDelayModel(System):
             V=V,
             Fs=Fs,
             Ws=[jnp.diag(jnp.array([sigma])) for sigma in sigmas],
+            Q=Q,
+            R=R,
+            delays=delays,
+            T=T,
+        )
+
+        super().__init__(actor=spec, dynamics=spec)
+
+
+class BiasMultisensoryDelayModelPointMassDynamics(System):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigmas=[1.0, 1.0],
+        action_variability=0.5,
+        action_cost=0.1,
+        dt=0.075,
+        damping=0.0015,
+        m=1.0,
+        tau=0.066,
+        delays=[1, 1],
+        T=1000,
+    ):
+
+        A, B, V = point_mass_dynamics_matrices(
+            damping=damping, m=m, tau=tau, action_variability=action_variability, dt=dt
+        )
+
+        A = linalg.block_diag(jnp.eye(1), A, jnp.eye(1))
+        B = jnp.vstack([jnp.zeros((1, 1)), B, jnp.zeros((1, 1))])
+
+        # here, we apply the same noise to the position and the biased visual position,
+        # which means that the noise is shared across the two sensory modalities
+        # note how the third column is all zeros, which means that we ignore one element of the noise vector
+        V = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V, jnp.zeros((1, 1)))
+        V = V.at[-1, 0].set(process_noise)
+
+        # the first element of the sensory feedback is the proprioceptive feedback
+        # the second element of the sensory feedback is the proprioceptive feedback of the velocity
+        # the third element of the sensory feedback is the visual feedback, which is biased by the third element of the state vector
+        # the fourth element of the sensory feedback is the visual feedback of the velocity
+        Fs = [
+            jnp.array([[1.0, -1.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0, 0.0]]),
+            jnp.array([[0.0, -1.0, 0.0, 0.0, 1.0],
+                        [0.0, 0.0, 1.0, 0.0, 0.0]]),
+        ]
+
+        Q = jnp.array(
+            [
+                [1.0, -1.0, 0.0, 0.0, 0.0],
+                [-1.0, 1.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        R = jnp.array([[action_cost]])
+
+        spec = multisensory_delay_system(
+            A=A,
+            B=B,
+            V=V,
+            Fs=Fs,
+            Ws=[sigma * jnp.eye(2) for sigma in sigmas],
             Q=Q,
             R=R,
             delays=delays,
