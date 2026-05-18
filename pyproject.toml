@@ -1,20 +1,21 @@
 [project]
 name = "cppp"
 version = "0.1.0"
-description = "Continuous psychophysics for proprioception"
-authors = [
-    {name = "D. Straub",email = "ds2181@cam.ac.uk"}
-]
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "lqg @ git+https://github.com/RothkopfLab/lqg.git#main",
-    "matplotlib (>=3.10.3,<4.0.0)",
-    "seaborn (>=0.13.2,<0.14.0)",
-    "arviz (>=0.22.0,<0.23.0)"
+    "ipykernel>=7.2.0",
+    "lqg",
+    "seaborn>=0.13.2",
 ]
 
+[tool.uv.sources]
+lqg = { git = "https://github.com/RothkopfLab/lqg.git" }
+
+[tool.uv.build-backend]
+module-root = ""
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.11.14,<0.12.0"]
+build-backend = "uv_build"
