@@ -131,8 +131,6 @@ if __name__ == "__main__":
                 vis_noise=vis_noise,
             )
 
-    f, ax = plt.subplots(4, 2, figsize=(10, 16), sharey=True, sharex=True)
-
     ppc_dfs = []
     for k, (model_name, model) in enumerate(models.items()):
         # print(model.log_likelihood["x_multi_1"].shape)
@@ -158,6 +156,7 @@ if __name__ == "__main__":
                 ppc_dfs.append(
                     pd.DataFrame(
                         {
+                            "participant": args.participant,
                             "model": model_name,
                             "condition": condition,
                             "vis_noise": vis_noise,
@@ -167,13 +166,13 @@ if __name__ == "__main__":
                     )
                 )
 
-                # plot the cross-correlations for the real data and the simulated data
                 if (
                     k == 0
-                ):  # only plot and save the real data once (when plotting the first model)
+                ):  # only save the real data once (when plotting the first model)
                     ppc_dfs.append(
                         pd.DataFrame(
                             {
+                                "participant": args.participant,
                                 "model": "data",
                                 "condition": condition,
                                 "vis_noise": vis_noise,
@@ -182,43 +181,12 @@ if __name__ == "__main__":
                             }
                         )
                     )
-                    ax[0, j].plot(
-                        lags[51:] * dt,
-                        correls.mean(axis=0)[51:],
-                        label=f"{condition}",
-                        color=f"C{i}",
-                    )
-                ax[k + 1, j].plot(
-                    lags[51:] * dt,
-                    sim_correls.mean(axis=(0, 1))[51:],
-                    label=f"{condition}",
-                    color=f"C{i}",
-                )
-
-                ax[0, j].set_xlim(0, 2)
-                ax[k + 1, j].set_xlim(0, 2)
-
-                ax[0, j].set_title(f"Data - noise level {vis_noise}")
-                ax[k + 1, j].set_title(
-                    f"{model_name.capitalize()} model - noise level {vis_noise}"
-                )
 
     ppc_df = pd.concat(ppc_dfs, ignore_index=True)
     ppc_df.to_csv(
         f"results/ppc/multisensory-simulations-ppc-{filename_from_args(args)}.csv",
         index=False,
     )
-
-    ax[k + 1, 0].set_xlabel("Lag (s)")
-    ax[k + 1, 1].set_xlabel("Lag (s)")
-    ax[0, 0].set_ylabel("Cross-correlation")
-    ax[k + 1, 0].set_ylabel("Cross-correlation")
-
-    ax[0, 0].legend()
-    ax[k + 1, 0].legend()
-    f.suptitle(f"Participant: {args.participant}")
-    f.tight_layout()
-    f.savefig(f"results/multisensory-simulations-{filename_from_args(args)}.png")
 
     # get current participant's data
     df = df[df["participant"] == args.participant]
@@ -229,19 +197,11 @@ if __name__ == "__main__":
 
     print("Simulating calibration phase for all models...")
     # simulate calibration phase
-    f, ax = plt.subplots(4, 1, figsize=(5, 16), sharey=True, sharex=True)
     dfs = []
     for (trial_number, vis_noise), trial_df in df[df["phase"] == "calibration"].groupby(
         ["trial_number", "vis_noise"]
     ):
         offset = trial_df["cursor_offset"].iloc[0]
-
-        ax[0].scatter(
-            trial_number,
-            trial_df["tracking_error"].mean(),
-            color="C0" if vis_noise == 1 else "C1",
-        )
-        ax[0].set_ylabel("Mean tracking error")
 
         for k, (model_name, model) in enumerate(models.items()):
             summary = az.summary(model)
@@ -274,21 +234,6 @@ if __name__ == "__main__":
                             }
                         )
                     )
-
-                ax[k + 1].scatter(
-                    trial_number, error, color="C0" if vis_noise == 1 else "C1"
-                )
-                ax[k + 1].set_ylabel("Mean tracking error")
-                ax[k + 1].set_title(f"{model_name.capitalize()} model")
-
-                # plt.axhline(0, color="black", linestyle="--")
-    ax[-1].set_xlabel("Trial number")
-    ax[0].set_title("Data")
-    f.suptitle(f"Participant: {args.participant}")
-    f.tight_layout()
-    f.savefig(
-        f"results/calibration/multisensory-simulations-calibration-{filename_from_args(args)}.png"
-    )
 
     df = pd.concat(dfs, ignore_index=True)
     df.to_csv(
