@@ -34,7 +34,7 @@ def lqg_model(x, ModelType):
         "action_variability", dist.HalfNormal(0.5), sample_shape=(dim,)
     )
     action_cost = numpyro.sample(
-        "action_cost", dist.HalfNormal(0.5), sample_shape=(dim,)
+        "action_cost", dist.LogNormal(-3.0, 0.5), sample_shape=(dim,)
     )
 
     # prior on correlation

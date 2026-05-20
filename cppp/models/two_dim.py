@@ -1,7 +1,8 @@
 import jax.numpy as jnp
+from jax import vmap
 from jax.scipy import linalg
 from lqg import Actor, System
-from cppp.models.dynamics import point_mass_dynamics_matrices
+from cppp.models.dynamics import tracking_point_mass_dynamics_matrices
 
 
 class CorrelatedObservationModel(System):
@@ -20,18 +21,16 @@ class CorrelatedObservationModel(System):
         tau=0.066,
     ):
 
-        self.process_noise = process_noise
-
         # dynamics model
-        A, B, V = point_mass_dynamics_matrices(damping, m, tau, action_variability, dt)
+        A, B, V = vmap(
+            lambda action_var: tracking_point_mass_dynamics_matrices(
+                process_noise, damping, m, tau, action_var, dt
+            )
+        )(action_variability)
 
-        A = linalg.block_diag(jnp.eye(1), A)
-        B = jnp.vstack([jnp.zeros((1, 1)), B])
-        V = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
-
-        A = linalg.block_diag(*[A] * dim)
-        B = linalg.block_diag(*[B] * dim)
-        V = linalg.block_diag(*[V] * dim)
+        A = linalg.block_diag(*A)
+        B = linalg.block_diag(*B)
+        V = linalg.block_diag(*V)
 
         # Define permutation indices, so that we have target and cursor first
         perm_indices = jnp.array(
@@ -84,33 +83,31 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
 
-    dt_rw = 1.0 / 60.0
+    dt_rw = 1.0 / 18.18
 
     params = {
         "process_noise": 1.0,
-        "sigma_target": 6.0,
-        "sigma_cursor": 6.0,
-        "action_variability": 0.5,
-        "action_cost": 0.01,
+        "sigma": jnp.array([10.0, 1.0]),
+        "action_variability": jnp.array([0.1, 0.1]),
+        "action_cost": jnp.array([0.01, 0.01]),
     }
-
+    rho = 0.5
+    corr_chol = jnp.array([[1.0, rho], [0.0, jnp.sqrt(1 - rho**2)]])
+    params["corr_chol"] = corr_chol
     model = CorrelatedObservationModel(
-        sigma=jnp.array([params["sigma_target"], params["sigma_target"]]),
-        corr_chol=jnp.array([[1.0, 0.5], [0.0, jnp.sqrt(1 - 0.5**2)]]),
-        process_noise=params["process_noise"],
-        action_variability=jnp.array(
-            [params["action_variability"], params["action_variability"]]
-        ),
-        action_cost=params["action_cost"],
+        **params,
         dt=dt_rw,
-        T=500,
+        T=168,
     )
 
     x = model.simulate(n=50, rng_key=random.PRNGKey(0))
 
     vels = jnp.diff(x, axis=-2)
 
-    lags, correls = xcorr(vels[..., 1], vels[..., 0], maxlags=100)
+    lags, correls = xcorr(vels[..., 1], vels[..., 0], maxlags=50)
+    plt.plot(lags[50:] * dt_rw, correls.mean(axis=0)[50:])
 
-    plt.plot(lags[100:] * dt_rw, correls.mean(axis=0)[100:])
+    lags, correls = xcorr(vels[..., 3], vels[..., 2], maxlags=50)
+    plt.plot(lags[50:] * dt_rw, correls.mean(axis=0)[50:])
+
     plt.savefig("two_dim_correls.png")
