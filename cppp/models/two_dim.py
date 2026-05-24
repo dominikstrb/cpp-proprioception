@@ -16,7 +16,7 @@ class CorrelatedObservationModel(System):
         dt=1 / 60.0,
         T=1000,
         dim=2,  # TODO: generalize this for higher dimensions (currently hardcoded for 2D)
-        damping=0.1,
+        damping=0.,
         m=1.0,
         tau=0.066,
     ):
@@ -70,7 +70,7 @@ class CorrelatedObservationModel(System):
         Q = (
             permutation_matrix @ Q @ permutation_matrix.T
         )  # permute the cost matrix to match the state ordering
-        R = jnp.diag(jnp.ones(dim) * action_cost)
+        R = B.T @ B @ jnp.diag(action_cost * jnp.ones(dim))
 
         spec = Actor(A=A, B=B, F=F, V=V, W=W, Q=Q, R=R, T=T)
 
@@ -89,9 +89,9 @@ if __name__ == "__main__":
         "process_noise": 1.0,
         "sigma": jnp.array([10.0, 1.0]),
         "action_variability": jnp.array([0.1, 0.1]),
-        "action_cost": jnp.array([0.01, 0.01]),
+        "action_cost": jnp.ones(2) *1.,
     }
-    rho = 0.5
+    rho = 0.1
     corr_chol = jnp.array([[1.0, rho], [0.0, jnp.sqrt(1 - rho**2)]])
     params["corr_chol"] = corr_chol
     model = CorrelatedObservationModel(

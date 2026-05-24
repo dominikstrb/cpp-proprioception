@@ -23,7 +23,7 @@ import cppp.models as models
 from cppp.models.two_dim import CorrelatedObservationModel
 
 
-def lqg_model(x, ModelType):
+def lqg_model(x, process_noise, ModelType):
     # get the number of time steps from the data
     T = x.shape[1]
     # get the dimensionality from the data
@@ -34,7 +34,7 @@ def lqg_model(x, ModelType):
         "action_variability", dist.HalfNormal(0.5), sample_shape=(dim,)
     )
     action_cost = numpyro.sample(
-        "action_cost", dist.LogNormal(-3.0, 0.5), sample_shape=(dim,)
+        "action_cost", dist.HalfNormal(0.5), sample_shape=(dim,)
     )
 
     # prior on correlation
@@ -51,10 +51,11 @@ def lqg_model(x, ModelType):
         numpyro.deterministic("rho", L[1, 0])
 
     if ModelType == CorrelatedObservationModel:
-        sigma = numpyro.sample("sigma", dist.HalfNormal(10.0), sample_shape=(dim,))
+        sigma = numpyro.sample("sigma", dist.HalfNormal(5.0), sample_shape=(dim,))
 
         # pass the parameters to the model
         model = ModelType(
+            process_noise=process_noise,
             action_variability=action_variability,
             action_cost=action_cost,
             sigma=sigma,
@@ -77,10 +78,10 @@ def parse_args():
     )
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     parser.add_argument(
-        "--nwarmup", type=int, default=1_000, help="Number of warump steps for NUTS."
+        "--nwarmup", type=int, default=2500, help="Number of warump steps for NUTS."
     )
     parser.add_argument(
-        "--nsamp", type=int, default=1_000, help="Number of samples for NUTS."
+        "--nsamp", type=int, default=2500, help="Number of samples for NUTS."
     )
     parser.add_argument("--nchain", type=int, default=4, help="Number of chains.")
     parser.add_argument(
@@ -89,8 +90,8 @@ def parse_args():
         default="CorrelatedObservationModel",
         help="Model type (lqg.tracking)",
     )
-    parser.add_argument("--plot", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--save", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--save", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
 
@@ -99,22 +100,27 @@ if __name__ == "__main__":
 
     # --- Load and preprocess data ---
     df = load_data(pos=args.pos)
-    xy_array = preprocess_data(df, lag=2)
+    xy_array = preprocess_data(df, lag=1)
+
+    process_noise = 1.2
 
     ModelType = getattr(models, args.model)
 
     # --- Run MCMC for model fitting ---
-    nuts_kernel = NUTS(lqg_model)
+    nuts_kernel = NUTS(lqg_model, init_strategy=numpyro.infer.init_to_median)
     mcmc_xy = MCMC(
-        nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4
+        nuts_kernel,
+        num_warmup=args.nwarmup,
+        num_samples=args.nsamp,
+        num_chains=4,
     )
-    mcmc_xy.run(random.PRNGKey(args.seed), xy_array, ModelType)
+    mcmc_xy.run(random.PRNGKey(args.seed), xy_array, process_noise, ModelType)
 
     inference_data_xy = az.from_numpyro(mcmc_xy)
 
     if args.save:
         inference_data_xy.to_netcdf(
-            f"results/mcmc-{args.pos}-{args.model}-{args.seed}.nc"
+            f"results/2d/mcmc-{args.pos}-{args.model}-{args.seed}.nc"
         )
 
     summary_xy = az.summary(inference_data_xy)
@@ -268,4 +274,4 @@ if __name__ == "__main__":
 
         plt.suptitle("Cross-Correlation: Data vs Model (Separated Panels)")
         plt.tight_layout()
-        plt.savefig(f"results/ccgs-{args.pos}-{args.model}-{args.seed}.png")
+        plt.savefig(f"results/2d/ccgs-{args.pos}-{args.model}-{args.seed}.png")
