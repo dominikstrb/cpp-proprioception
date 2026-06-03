@@ -31,26 +31,29 @@ if __name__ == "__main__":
         model_class=multisensory.BiasMultisensoryDelayModelPointMassDynamics,
     ):
         if model_name == "optimal":
+            delay_list = [delays["prop"], delays["vis"]]
             model = model_class(
                 process_noise=1.2,
                 sigmas=[params["sigma_prop"], params[f"sigma_vis[{vis_noise - 1}]"]],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
-                delays=[delays["prop"], delays["vis"]],
+                delays=delay_list,
                 dt=dt,
                 T=168,
             )
         elif model_name == "no_integration":
+            delay_list = [delays["prop"]]
             model = model_class(
                 process_noise=1.2,
                 sigmas=[params["sigma_prop"]],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
-                delays=[delays["prop"]],
+                delays=delay_list,
                 dt=dt,
                 T=168,
             )
         elif model_name == "equal_integration":
+            delay_list = [delays["prop"], delays["vis"]]
             sigma = jnp.sqrt(
                 (params["sigma_prop"] ** 2 + params[f"sigma_vis[{vis_noise - 1}]"] ** 2)
                 / 2
@@ -60,18 +63,20 @@ if __name__ == "__main__":
                 sigmas=[sigma, sigma],
                 action_variability=params["action_variability"],
                 action_cost=params["action_cost"],
-                delays=[delays["prop"], delays["vis"]],
+                delays=delay_list,
                 dt=dt,
                 T=168,
             )
         else:
             raise ValueError(f"Unknown model name: {model_name}")
 
+        x0 = jnp.array([0.0, 0.0, 0.0, 0.0, bias]  * (max(delay_list) + 1))
         x = model.simulate(
             rng_key=random.PRNGKey(0),
             n=20,
             # TODO: this does not work anymore for the standard model without point mass dynamics, because it has a different state space dimensionality
-            x0=jnp.array([0.0, 0.0, 0.0, 0.0, bias] + [0.0] * (model.xdim - 5)),
+            x0=x0,
+            xhat0=jnp.zeros(model.bdim),
         )
         return x
 
@@ -231,6 +236,7 @@ if __name__ == "__main__":
                                 "righty_pos": x_i[:, 0],
                                 "lefty_pos": x_i[:, 1],
                                 "repetition": rep,
+                                "time": np.arange(x_i.shape[0]) * dt,
                             }
                         )
                     )
