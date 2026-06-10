@@ -25,9 +25,9 @@ participants=(
 for participant in "${participants[@]}"; do
     source .venv/bin/activate
     echo "Fitting participant $participant"
-    nohup python fit_multisensory.py --participant $participant --model optimal --model_class MultisensoryDelayModelPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 > logs/$participant-optimal-MultisensoryDelayModelPointMassDynamics.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class MultisensoryDelayModelPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 > logs/$participant-no_integration-MultisensoryDelayModelPointMassDynamics.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class MultisensoryDelayModelPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 > logs/$participant-equal_integration-MultisensoryDelayModelPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model optimal --model_class BoundedActorPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 --conditions prop vis > logs/$participant-optimal-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class BoundedActorPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 --conditions prop vis > logs/$participant-no_integration-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class BoundedActorPointMassDynamics --seed 7453 --nwarmup 1000 --nsamp 2500 --conditions prop vis > logs/$participant-equal_integration-BoundedActorPointMassDynamics.out 2>&1 &
     wait
     echo "Finished fitting participant $participant"
 done

@@ -8,26 +8,48 @@ import arviz as az
 numpyro.set_host_device_count(4)
 
 from cppp.load import load_multisensory_data, preprocess_multisensory_data
-from cppp.models.multisensory import MultisensoryDelayModel
+from cppp.models.multisensory import BoundedActor
 from cppp.models import multisensory
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Model fitting")
-    parser.add_argument("--participant", type=int, default=135033060, help="Participant ID")
+    parser.add_argument(
+        "--participant", type=int, default=135033060, help="Participant ID"
+    )
     parser.add_argument(
         "--prop_delay",
         type=int,
         default=1,
         help="Delay in proprioceptive signal (in the model)",
     )
-    parser.add_argument("--vis_delay", type=int, default=2, help="Delay in visual signal (in the model)")
+    parser.add_argument(
+        "--vis_delay", type=int, default=2, help="Delay in visual signal (in the model)"
+    )
     parser.add_argument("--seed", type=int, default=7453, help="Random seed")
-    parser.add_argument("--nwarmup", type=int, default=1000, help="Number of warump steps for NUTS.")
-    parser.add_argument("--nsamp", type=int, default=2_500, help="Number of samples for NUTS.")
+    parser.add_argument(
+        "--nwarmup", type=int, default=1000, help="Number of warump steps for NUTS."
+    )
+    parser.add_argument(
+        "--nsamp", type=int, default=2_500, help="Number of samples for NUTS."
+    )
     parser.add_argument("--nchain", type=int, default=4, help="Number of chains.")
-    parser.add_argument("--model", type=str, default="optimal", help="Kind of integration model to fit")
-    parser.add_argument("--model_class", type=str, default="MultisensoryDelayModel", help="Model class to fit")
+    parser.add_argument(
+        "--model", type=str, default="optimal", help="Kind of integration model to fit"
+    )
+    parser.add_argument(
+        "--model_class",
+        type=str,
+        default="MultisensoryDelayModel",
+        help="Model class to fit",
+    )
+    parser.add_argument(
+        "--conditions",
+        type=str,
+        nargs="+",
+        default=["prop", "vis", "multi"],
+        help="Conditions to include in the fit",
+    )
     return parser.parse_args()
 
 
@@ -36,13 +58,32 @@ def filename_from_args(args):
     return indicator
 
 
-def optimal_integration_model(data, delays, dt=0.075, obs=True, model_class=MultisensoryDelayModel):
+def optimal_integration_model(
+    data, delays, dt=0.075, obs=True, model_class=BoundedActor
+):
 
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
     sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
-    action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
-    action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
+
+    motor_params = {
+        "action_variability": numpyro.sample(
+            "action_variability", dist.HalfNormal(0.5)
+        ),
+        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
+    }
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.OptimalActorPointMassDynamics,
+        multisensory.IdealObserver,
+        multisensory.OptimalActor,
+    ]:
+        motor_params.pop("action_cost", None)
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.IdealObserver,
+    ]:
+        motor_params.pop("action_variability", None)
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -51,22 +92,22 @@ def optimal_integration_model(data, delays, dt=0.075, obs=True, model_class=Mult
             model = model_class(
                 process_noise=1.2,
                 sigmas=[sigma_prop, sigma_vis[vis_noise - 1]],
-                action_variability=action_variability,
-                action_cost=action_cost,
                 delays=[delays["prop"], delays["vis"]],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
         else:
             delay = delays[condition]
             model = model_class(
                 process_noise=1.2,
-                sigmas=[sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]],
-                action_variability=action_variability,
-                action_cost=action_cost,
+                sigmas=[
+                    sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]
+                ],
                 delays=[delay],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
 
         # likelihood
@@ -77,13 +118,29 @@ def optimal_integration_model(data, delays, dt=0.075, obs=True, model_class=Mult
         )
 
 
-def no_integration_model(data, delays, dt=0.075, obs=True, model_class=MultisensoryDelayModel):
+def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
     sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
 
-    action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
-    action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
+    motor_params = {
+        "action_variability": numpyro.sample(
+            "action_variability", dist.HalfNormal(0.5)
+        ),
+        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
+    }
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.OptimalActorPointMassDynamics,
+        multisensory.IdealObserver,
+        multisensory.OptimalActor,
+    ]:
+        motor_params.pop("action_cost", None)
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.IdealObserver,
+    ]:
+        motor_params.pop("action_variability", None)
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -92,22 +149,22 @@ def no_integration_model(data, delays, dt=0.075, obs=True, model_class=Multisens
             model = model_class(
                 process_noise=1.2,
                 sigmas=[sigma_prop],
-                action_variability=action_variability,
-                action_cost=action_cost,
                 delays=[delays["prop"]],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
         else:
             delay = delays[condition]
             model = model_class(
                 process_noise=1.2,
-                sigmas=[sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]],
-                action_variability=action_variability,
-                action_cost=action_cost,
+                sigmas=[
+                    sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]
+                ],
                 delays=[delay],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
 
         # likelihood
@@ -118,13 +175,29 @@ def no_integration_model(data, delays, dt=0.075, obs=True, model_class=Multisens
         )
 
 
-def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=MultisensoryDelayModel):
+def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
     sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
 
-    action_variability = numpyro.sample("action_variability", dist.HalfNormal(0.5))
-    action_cost = numpyro.sample("action_cost", dist.HalfNormal(0.5))
+    motor_params = {
+        "action_variability": numpyro.sample(
+            "action_variability", dist.HalfNormal(0.5)
+        ),
+        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
+    }
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.OptimalActorPointMassDynamics,
+        multisensory.IdealObserver,
+        multisensory.OptimalActor,
+    ]:
+        motor_params.pop("action_cost", None)
+    if model_class in [
+        multisensory.IdealObserverPointMassDynamics,
+        multisensory.IdealObserver,
+    ]:
+        motor_params.pop("action_variability", None)
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -134,22 +207,22 @@ def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=Multis
             model = model_class(
                 process_noise=1.2,
                 sigmas=[sigma, sigma],
-                action_variability=action_variability,
-                action_cost=action_cost,
                 delays=[delays["prop"], delays["vis"]],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
         else:
             delay = delays[condition]
             model = model_class(
                 process_noise=1.2,
-                sigmas=[sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]],
-                action_variability=action_variability,
-                action_cost=action_cost,
+                sigmas=[
+                    sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]
+                ],
                 delays=[delay],
                 dt=dt,
                 T=T - 1,
+                **motor_params,
             )
 
         # likelihood
@@ -176,7 +249,7 @@ if __name__ == "__main__":
 
     # load data for all conditions and visual noise levels
     data = {}
-    for condition in df["type"].unique():
+    for condition in args.conditions:
         for vis_noise in df["vis_noise"].unique():
             data[(condition, vis_noise)] = preprocess_multisensory_data(
                 df,
@@ -187,7 +260,9 @@ if __name__ == "__main__":
 
     # fit joint model
     nuts_kernel = NUTS(models[args.model])
-    mcmc = MCMC(nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4)
+    mcmc = MCMC(
+        nuts_kernel, num_warmup=args.nwarmup, num_samples=args.nsamp, num_chains=4
+    )
     mcmc.run(
         random.PRNGKey(args.seed),
         data,

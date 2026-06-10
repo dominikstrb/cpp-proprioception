@@ -55,7 +55,7 @@ def multisensory_delay_system(A, B, V, Fs, Ws, Q, R, delays=[0, 1], T=500):
     return spec
 
 
-class MultisensoryDelayModel(System):
+class BoundedActor(System):
     def __init__(
         self,
         process_noise=1.0,
@@ -87,8 +87,48 @@ class MultisensoryDelayModel(System):
         )
         super().__init__(actor=spec, dynamics=spec)
 
+class OptimalActor(BoundedActor):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigmas=[1.0, 1.0],
+        action_variability=0.5,
+        dt=0.075,
+        delays=[1, 1],
+        T=1000,
+    ):
 
-class MultisensoryDelayModelPointMassDynamics(System):
+        super().__init__(
+            process_noise=process_noise,
+            sigmas=sigmas,
+            action_variability=action_variability,
+            action_cost=1e-6,  # set action cost to a very small value to approximate the actor without action cost
+            dt=dt,
+            delays=delays,
+            T=T,
+        )
+
+class IdealObserver(BoundedActor):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigmas=[1.0, 1.0],
+        dt=0.075,
+        delays=[1, 1],
+        T=1000,
+    ):
+
+        super().__init__(
+            process_noise=process_noise,
+            sigmas=sigmas,
+            action_variability=1e-6,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
+            action_cost=1e-6,  # set action cost to a very small value to approximate the ideal observer who does not take into account action cost
+            dt=dt,
+            delays=delays,
+            T=T,
+        )
+
+class BoundedActorPointMassDynamics(System):
     def __init__(
         self,
         process_noise=1.0,
@@ -133,6 +173,58 @@ class MultisensoryDelayModelPointMassDynamics(System):
         )
         super().__init__(actor=spec, dynamics=spec)
 
+class OptimalActorPointMassDynamics(BoundedActorPointMassDynamics):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigmas=[1.0, 1.0],
+        action_variability=0.5,
+        damping=0.0015,
+        m=1.0,
+        tau=0.066,
+        dt=0.075,
+        delays=[1, 1],
+        T=1000,
+    ):
+
+        super().__init__(
+            process_noise=process_noise,
+            sigmas=sigmas,
+            action_variability=action_variability,
+            action_cost=1e-6,  # set action cost to a very small value to approximate the actor without action cost
+            damping=damping,
+            m=m,
+            tau=tau,
+            dt=dt,
+            delays=delays,
+            T=T,
+        )
+
+class IdealObserverPointMassDynamics(BoundedActorPointMassDynamics):
+    def __init__(
+        self,
+        process_noise=1.0,
+        sigmas=[1.0, 1.0],
+        damping=0.0015,
+        m=1.0,
+        tau=0.066,
+        dt=0.075,
+        delays=[1, 1],
+        T=1000,
+    ):
+
+        super().__init__(
+            process_noise=process_noise,
+            sigmas=sigmas,
+            action_variability=1e-6,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
+            action_cost=1e-6,  # set action cost to a very small value to approximate the ideal observer who does not take into account action cost
+            damping=damping,
+            m=m,
+            tau=tau,
+            dt=dt,
+            delays=delays,
+            T=T,
+        )
 
 class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
     def __init__(
