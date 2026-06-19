@@ -1,0 +1,149 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage[capitalise]{cleveref}
+\usepackage[backend=biber,
+ language=auto,%
+ style=apa,%
+ sorting=nyt, % name, year, title
+ sortcites=false,
+ natbib=true]{biblatex}
+
+\addbibresource{references.bib}
+
+
+\title{Continuous proprioception model}
+\author{Dominik Straub}
+\date{June 2026}
+
+\input{defs}
+
+\begin{document}
+
+\maketitle
+
+\section{Methods}
+\subsection{General equations for LQG control}
+    The state of the environment $\state_t$ evolves as a function of the previous state and the action $\action_t$ performed by the agent according to a discrete-time linear dynamical system with Gaussian noise
+\begin{align}\label{eq:dynamics}
+    \state_{t+1} \sim \Normal(\mathbf A \state_t + \mathbf B \action_t, \mathbf \Sigma_\state),
+\end{align}
+whose covariance is $\mathbf \Sigma_\state$.
+
+At each time step, the agent receives a noisy observation $\obs_t$ of the state,  
+\begin{align}\label{eq:obsmodel}
+    \obs_t \sim \Normal(\mathbf H \state_t, \mathbf \Sigma_\obs),
+\end{align}
+which is a linearly transformed version of the state with additive Gaussian noise with covariance $\mathbf \Sigma_\obs$.
+
+The cost function is quadratic in the state and the actions
+\begin{align}\label{eq:quadratic-cost}
+    \sum_{t=1}^T \state_t^\top \mathbf Q \state_t + \action_t^\top \mathbf R \action_t.
+\end{align}
+
+This control problem is called linear-quadratic-Gaussian (LQG) control and has a well-known optimal solution, which is composed of optimal state estimation (Kalman filter, KF) and optimal control (linear-quadratic regulator, LQR).
+
+The KF iteratively computes a posterior distribution about the state given a sequence of sensory observations $p(\state_t \vert \obs_{1}, \dots, \obs_t) = \mathcal{N}(\stateestimate_t, \mathbf \Sigma_t)$, where the mean state estimate and its covariance are updated according to
+\begin{align}
+    \stateestimate_{t+1} &= \mathbf A \stateestimate_t + \mathbf B \action_t + \mathbf K_{t+1} \left(\obs_{t+1} - \mathbf H \left(\mathbf A \stateestimate_t + \mathbf B \action_t\right)\right) \\
+    \mathbf \Sigma_{t+1} &= (\Identity - \mathbf K_{t+1} \mathbf H) \mathbf P_{t+1},
+\end{align}
+where $\mathbf K_t$ is defined as
+\begin{align}
+    \mathbf K_{t+1} &= \mathbf P_{t+1} \mathbf H^\top \left(\mathbf H \mathbf P_{t+1} \mathbf H^\top + \mathbf \Sigma_\obs \right)^{-1}, \\
+    \mathbf P_{t+1} &= \mathbf A \mathbf \Sigma_{t} \mathbf A + \mathbf \Sigma_\state. \\
+\end{align}
+
+The linear-quadratic regulator defines an policy as a function of the current state estimate
+\begin{align}
+    \action_t = \mathbf L_t \stateestimate_t,
+\end{align}
+which minimizes the expected cost by solving a dynamic programming problem. For a derivation of $\mathbf L_t$ and a more detailed derivation of $\mathbf K_t$, see e.g. \citet{kochenderfer2022algorithms}. 
+
+\subsection{Tracking task with delayed observations}
+
+We model delayed tracking as a time-stacked LQG system following \citet{izawa2008line,crevecoeur2016dynamic}; see Kasuga et al. (2022) for related model details.
+
+\subsubsection{Velocity control model}
+In the velocity control model, the latent state contains the target position and the subject's hand position,
+\begin{align}
+    \state_t = \begin{bmatrix}
+        x^\text{right}_t \\ x^\text{left}_t
+    \end{bmatrix},
+\end{align}
+where the target follows a random walk and the subject controls the velocity of the left hand. The generative dynamics are
+\begin{align}
+    \state_{t+1} &= \mathbf A \state_t + \mathbf B \action_t + \statenoise_t,
+    && \statenoise_t \sim \Normal(\mathbf 0, \mathbf \Sigma_\state), \\
+    \mathbf A &= \Identity,
+    && \mathbf B = dt \begin{bmatrix} 0 \\ 1 \end{bmatrix},
+    && \mathbf \Sigma_\state = \begin{bmatrix} \sigma_\text{rw}^2 & 0 \\ 0 & \sigma_\text{control}^2 \end{bmatrix}.
+\end{align}
+
+The state cost penalizes the tracking error,
+\begin{align}
+    \mathbf Q = \begin{bmatrix}
+        1 & -1 \\
+        -1 & 1
+    \end{bmatrix},
+    \qquad
+    \mathbf R = \begin{bmatrix} c \end{bmatrix}.
+\end{align}
+The resulting model with a nonzero control cost parameter $c$ is the velocity control model with control cost. The corresponding control-cost-free version is the velocity control model without control cost, for which $c$ is set to a negligible value.
+
+\subsubsection{Point mass model}
+In the point mass model, the subject's hand follows a point-mass dynamical system with position, velocity, and force states, while the target still follows a random walk. In the code, this model is used in the form
+\begin{align}
+    \state_t = \begin{bmatrix}
+        x^\text{right}_t \\ x^\text{left}_t \\ v^\text{left}_t \\ f^\text{left}_t
+    \end{bmatrix},
+\end{align}
+with point-mass dynamics matrices $\mathbf A_{\mathrm{pm}}$, $\mathbf B_{\mathrm{pm}}$, and $\mathbf \Sigma_{\mathrm{pm}}$ as in the implementation.
+
+\subsubsection{Observations and delay}
+The agent observes the signed difference between the right and left hand positions,
+\begin{align}
+    \obs_t &= \mathbf H \state_{t-\delta} + \obsnoise_t,
+    && \obsnoise_t \sim \Normal(\mathbf 0, \mathbf \Sigma_\obs), \\
+    \mathbf H &= \begin{bmatrix} 1 & -1 \end{bmatrix},
+    && \mathbf \Sigma_\obs = \begin{bmatrix} \sigma_\text{obs}^2 \end{bmatrix}.
+\end{align}
+To handle the delay, we augment the latent state with the previous $\delta_\text{max}$ states,
+\begin{align}
+    \tilde\state_t = \left[\state_t, \state_{t-1}, \dots, \state_{t-\delta_\text{max}}\right]^\top,
+\end{align}
+and use the corresponding block-companion dynamics and block-diagonal state cost,
+\begin{align}
+    \tilde\state_{t+1} &= \tilde{\mathbf A} \tilde\state_t + \tilde{\mathbf B} \action_t + \tilde{\statenoise}_t, \\
+    \tilde{\mathbf Q} &= \text{diag}\left(\left[\mathbf Q, 0, \dots, 0\right]\right).
+\end{align}
+This delayed observation model is described in more detail by \citet{izawa2008line} and \citet{crevecoeur2016dynamic}.
+
+The point mass model with control cost and point mass model without control cost use the same delayed observation model, but differ in whether $c$ is treated as a genuine penalty or set to a negligible value.
+
+\subsection{Model fitting}
+We fit the model to the behavioral data using inverse optimal control (IOC) for LQG system \citep{straub2022putting}. More concretely, IOC defines the likelihood of a trajectory of observed states conditional on the model parameters $p(\state_{1:T}^{(i)} \vert \bm \theta)$, where $\state_{1:T}^{(i)}$ is the sequence containing $T$ time steps of observed left and right hand positions in trial $i$. We assume that the individual trials are independent realizations of tracking behavior generated from the optimal control model with the same parameters $\bm \theta$, s.t. the likelihood of a dataset $\mathcal{D}$ is given by $p(\mathcal{D} \vert \bm \theta) = \prod_i p(\state_{1:T}^{(i)} \vert \bm \theta)$.
+
+We assume that the same action cost $c$, action variability $\sigma_\text{action}$, and observation noise $\sigma_\text{obs}$ apply across all trials.
+
+Overall, the model has three free parameters $\bm \theta = \left\{c, \sigma_\text{action}, \sigma_\text{obs}\right\}$.
+
+We define weakly informative prior distributions over the parameters:
+\begin{align*}
+    c &\sim \text{HalfNormal}(0.5) \\
+    \sigma_\text{action} &\sim \text{HalfNormal}(10) \\
+    \sigma_\text{obs} &\sim \text{HalfNormal}(10) 
+\end{align*}
+
+To compare model assumptions, we consider the velocity control model and the point mass model, each with and without control cost. The difference between the control-cost-free and control-cost versions is whether $c$ is fixed to a negligible value or estimated as a genuine penalty. 
+\begin{enumerate}
+    \item In the \textit{velocity control model} and the \textit{point mass model}, the latent dynamics differ, but the delayed observation model is the same.
+    \item In the \textit{with control cost} versions, the action cost $c$ is estimated; in the \textit{without control cost} versions, $c$ is fixed to a negligible value.
+\end{enumerate}
+ 
+
+\section*{References}
+\printbibliography[heading=none]
+
+\end{document}
