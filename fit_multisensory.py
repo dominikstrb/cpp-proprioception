@@ -57,33 +57,39 @@ def filename_from_args(args):
     indicator = "_".join(map(str, vars(args).values()))
     return indicator
 
+default_priors = {
+    "sigma_vis": dist.HalfNormal(40.0).expand([2]),
+    "sigma_prop": dist.HalfNormal(40.0),
+    "action_variability": dist.HalfNormal(1.),
+    "action_cost": dist.HalfNormal(1.),
+}
 
 def optimal_integration_model(
-    data, delays, dt=0.075, obs=True, model_class=BoundedActor
+    data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors,
 ):
 
     # priors
-    sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
-    sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
+    sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
+    sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
 
-    motor_params = {
-        "action_variability": numpyro.sample(
-            "action_variability", dist.HalfNormal(0.5)
-        ),
-        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
-    }
+    motor_params = {}
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
         multisensory.OptimalActorPointMassDynamics,
-        multisensory.IdealObserver,
         multisensory.OptimalActor,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_cost", None)
+        motor_params["action_variability"] = numpyro.sample(
+            "action_variability", priors["action_variability"]
+        )
+
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
-        multisensory.IdealObserver,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_variability", None)
+        motor_params["action_cost"] = numpyro.sample(
+            "action_cost", priors["action_cost"]
+        )
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -118,29 +124,29 @@ def optimal_integration_model(
         )
 
 
-def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor):
+def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors):
     # priors
-    sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
-    sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
+    sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
+    sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
 
-    motor_params = {
-        "action_variability": numpyro.sample(
-            "action_variability", dist.HalfNormal(0.5)
-        ),
-        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
-    }
+    motor_params = {}
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
         multisensory.OptimalActorPointMassDynamics,
-        multisensory.IdealObserver,
         multisensory.OptimalActor,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_cost", None)
+        motor_params["action_variability"] = numpyro.sample(
+            "action_variability", priors["action_variability"]
+        )
+
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
-        multisensory.IdealObserver,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_variability", None)
+        motor_params["action_cost"] = numpyro.sample(
+            "action_cost", priors["action_cost"]
+        )
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -175,29 +181,29 @@ def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedAc
         )
 
 
-def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor):
+def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors):
     # priors
-    sigma_vis = numpyro.sample("sigma_vis", dist.HalfNormal(10.0).expand([2]))
-    sigma_prop = numpyro.sample("sigma_prop", dist.HalfNormal(10.0))
+    sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
+    sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
 
-    motor_params = {
-        "action_variability": numpyro.sample(
-            "action_variability", dist.HalfNormal(0.5)
-        ),
-        "action_cost": numpyro.sample("action_cost", dist.HalfNormal(0.5)),
-    }
+    motor_params = {}
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
         multisensory.OptimalActorPointMassDynamics,
-        multisensory.IdealObserver,
         multisensory.OptimalActor,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_cost", None)
+        motor_params["action_variability"] = numpyro.sample(
+            "action_variability", priors["action_variability"]
+        )
+
     if model_class in [
-        multisensory.IdealObserverPointMassDynamics,
-        multisensory.IdealObserver,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
     ]:
-        motor_params.pop("action_variability", None)
+        motor_params["action_cost"] = numpyro.sample(
+            "action_cost", priors["action_cost"]
+        )
 
     for (condition, vis_noise), x in data.items():
         T = x.shape[1]
@@ -239,6 +245,8 @@ models = {
     "equal_integration": equal_integration_model,
 }
 
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -251,12 +259,15 @@ if __name__ == "__main__":
     data = {}
     for condition in args.conditions:
         for vis_noise in df["vis_noise"].unique():
-            data[(condition, vis_noise)] = preprocess_multisensory_data(
+            cond_data = preprocess_multisensory_data(
                 df,
                 participant=args.participant,
                 condition=condition,
                 vis_noise=vis_noise,
             )
+            print(f"Data shape for condition {condition} and vis_noise {vis_noise}: {cond_data.shape}")
+
+            data[(condition, vis_noise)] = cond_data
 
     # fit joint model
     nuts_kernel = NUTS(models[args.model])
