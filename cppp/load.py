@@ -112,7 +112,7 @@ def load_multisensory_data(base_path="data"):
     return df
 
 
-def preprocess_multisensory_data(df, participant, condition, vis_noise, phase="pre_cal"):
+def preprocess_multisensory_data(df, participant, condition, vis_noise, phase="pre_cal", cutoff=12):
     df_sub = df[
         (df["participant"] == participant)
         & (df["type"] == condition)
@@ -128,4 +128,13 @@ def preprocess_multisensory_data(df, participant, condition, vis_noise, phase="p
     min_len = min(lens)
     data = [d[:min_len] for d in data]
 
-    return np.stack(data)
+    data = np.stack(data)
+
+    # cut off the first 12 time steps (~ 1 second) 
+    data = data[:, cutoff:, :]
+    print(data.shape)
+
+    # subtract first time step from all time steps to set the initial position to zero
+    data -= data[:, 0, 0][:, np.newaxis, np.newaxis]
+
+    return data

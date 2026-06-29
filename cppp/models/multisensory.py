@@ -71,7 +71,7 @@ class BoundedActor(System):
         B = dt * jnp.array([[0.0], [1.0]])
         F = jnp.array([[1.0, -1.0]])
         V = jnp.diag(jnp.array([process_noise, action_variability]))
-        Q = jnp.array([[1.0, -1.0], [-1.0, 1.0]])
+        Q = 0.1 * jnp.array([[1.0, -1.0], [-1.0, 1.0]])
         R = jnp.array([[action_cost]])
 
         spec = multisensory_delay_system(
@@ -86,6 +86,7 @@ class BoundedActor(System):
             T=T,
         )
         super().__init__(actor=spec, dynamics=spec)
+
 
 class OptimalActor(BoundedActor):
     def __init__(
@@ -108,6 +109,7 @@ class OptimalActor(BoundedActor):
             T=T,
         )
 
+
 class IdealObserver(BoundedActor):
     def __init__(
         self,
@@ -127,6 +129,7 @@ class IdealObserver(BoundedActor):
             delays=delays,
             T=T,
         )
+
 
 class BoundedActorPointMassDynamics(System):
     def __init__(
@@ -150,7 +153,7 @@ class BoundedActorPointMassDynamics(System):
         V = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
 
         F = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
-        Q = jnp.array(
+        Q = 500.0 * jnp.array(
             [
                 [1.0, -1.0, 0.0, 0.0],
                 [-1.0, 1.0, 0.0, 0.0],
@@ -172,6 +175,7 @@ class BoundedActorPointMassDynamics(System):
             T=T,
         )
         super().__init__(actor=spec, dynamics=spec)
+
 
 class OptimalActorPointMassDynamics(BoundedActorPointMassDynamics):
     def __init__(
@@ -200,6 +204,7 @@ class OptimalActorPointMassDynamics(BoundedActorPointMassDynamics):
             T=T,
         )
 
+
 class IdealObserverPointMassDynamics(BoundedActorPointMassDynamics):
     def __init__(
         self,
@@ -216,7 +221,7 @@ class IdealObserverPointMassDynamics(BoundedActorPointMassDynamics):
         super().__init__(
             process_noise=process_noise,
             sigmas=sigmas,
-            action_variability=1e-6,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
+            action_variability=1e-2,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
             action_cost=1e-6,  # set action cost to a very small value to approximate the ideal observer who does not take into account action cost
             damping=damping,
             m=m,
@@ -225,6 +230,7 @@ class IdealObserverPointMassDynamics(BoundedActorPointMassDynamics):
             delays=delays,
             T=T,
         )
+
 
 class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
     def __init__(
