@@ -71,7 +71,7 @@ class BoundedActor(System):
         B = dt * jnp.array([[0.0], [1.0]])
         F = jnp.array([[1.0, -1.0]])
         V = jnp.diag(jnp.array([process_noise, action_variability]))
-        Q = 0.1 * jnp.array([[1.0, -1.0], [-1.0, 1.0]])
+        Q = jnp.array([[1.0, -1.0], [-1.0, 1.0]])
         R = jnp.array([[action_cost]])
 
         spec = multisensory_delay_system(
@@ -161,7 +161,7 @@ class BoundedActorPointMassDynamics(System):
                 [0.0, 0.0, 0.0, 0.0],
             ]
         )
-        R = jnp.array([[action_cost]])
+        R = B.T @ B * jnp.array([[action_cost]])
 
         spec = multisensory_delay_system(
             A,
@@ -278,7 +278,7 @@ class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
             ]
         )
         Q_actor = linalg.block_diag(Q_dynamics, jnp.zeros((1, 1)))
-        R = jnp.array([[action_cost]])
+        R = B.T @ B * jnp.array([[action_cost]])
 
         actor = multisensory_delay_system(
             A_actor,
