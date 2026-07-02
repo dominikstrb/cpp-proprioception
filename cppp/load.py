@@ -106,13 +106,15 @@ def downsample_uniform_sample(block_df, factor=55):
 
 
 def load_multisensory_data(base_path="data"):
-    data_path = Path(base_path) / "multisensory/df_all_phases_all_participants.csv"
+    data_path = Path(base_path) / "multisensory/data_all_downsampled.csv"
     df = pd.read_csv(data_path)
     print(f"Multisensory DataFrame loaded from {data_path} with shape:", df.shape)
     return df
 
 
-def preprocess_multisensory_data(df, participant, condition, vis_noise, phase="pre_cal", cutoff=12):
+def preprocess_multisensory_data(
+    df, participant, condition, vis_noise, phase="pre_cal", cutoff=12
+):
     df_sub = df[
         (df["participant"] == participant)
         & (df["type"] == condition)
@@ -130,7 +132,7 @@ def preprocess_multisensory_data(df, participant, condition, vis_noise, phase="p
 
     data = np.stack(data)
 
-    # cut off the first 12 time steps (~ 1 second) 
+    # cut off the first 12 time steps (~ 1 second)
     data = data[:, cutoff:, :]
     print(data.shape)
 
