@@ -26,8 +26,11 @@ def compute_crosscorr_stats(array_data, sampling_rate, max_lag=10):
     return lag_times, avg_data, std_data, lag, corr
 
 
-def concat_log_likelihoods(model):
+def concat_log_likelihoods(model, condition=None):
     var_names = model.log_likelihood.keys()
+
+    if condition is not None:
+        var_names = [name for name in var_names if condition in name]
 
     x = np.concatenate(
         [model.log_likelihood[f"{var_name}"].to_numpy() for var_name in var_names],

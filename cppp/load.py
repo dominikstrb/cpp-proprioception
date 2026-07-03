@@ -124,7 +124,8 @@ def preprocess_multisensory_data(
 
     data = []
     for trial_num, df_trial in df_sub.groupby("trial_number"):
-        data.append(np.array([df_trial["cursory_pos"], df_trial["lefty_pos"]]).T)
+        if len(df_trial) > 100:
+            data.append(np.array([df_trial["cursory_pos"], df_trial["lefty_pos"]]).T)
 
     lens = [d.shape[0] for d in data]
     min_len = min(lens)
