@@ -13,9 +13,9 @@
 \addbibresource{references.bib}
 
 
-\title{Continuous proprioception model}
-\author{Dominik Straub}
-\date{March 2026}
+\title{Supplementary material: Continuous proprioception model }
+% \author{Dominik Straub}
+% \date{March 2026}
 
 \input{defs}
 
@@ -61,9 +61,9 @@ The linear-quadratic regulator defines an policy as a function of the current st
 \end{align}
 which minimizes the expected cost by solving a dynamic programming problem. For a derivation of $\mathbf L_t$ and a more detailed derivation of $\mathbf K_t$, see e.g. \citet{kochenderfer2022algorithms}. 
 
-\subsection{Tracking task with delayed multisensory observations}
+\subsection{Target and hand dynamics}
 
-We model delayed multisensory tracking as a time-stacked LQG system following \citet{izawa2008line,crevecoeur2016dynamic}; see Kasuga et al. (2022) for related model details.
+We consider two different models of the subject's hand dynamics, which we call the velocity control model and the point mass model. In both models, the target follows a random walk with variance $\sigma_\text{rw}^2$ and the subject controls the left hand to track the target.
 
 \subsubsection{Velocity control model}
 In the velocity control model, the latent state contains the target position and the subject's hand position,
@@ -81,35 +81,19 @@ where the target follows a random walk and the subject controls the velocity of 
     && \mathbf \Sigma_\state = \begin{bmatrix} \sigma_\text{rw}^2 & 0 \\ 0 & \sigma_\text{control}^2 \end{bmatrix}.
 \end{align}
 
-The two sensory modalities observe the signed position difference between the right and left hands,
-\begin{align}
-    \obs_t^{(k)} &= \mathbf H \state_{t-\delta_k} + \obsnoise_t^{(k)},
-    && \obsnoise_t^{(k)} \sim \Normal(\mathbf 0, \mathbf \Sigma_\obs^{(k)}), \\
-    \mathbf H &= \begin{bmatrix} 1 & -1 \end{bmatrix},
-    && \mathbf \Sigma_\obs^{(k)} = \begin{bmatrix} \sigma_k^2 \end{bmatrix},
-\end{align}
-with one delay $\delta_k$ and one sensory noise level $\sigma_k$ per modality $k \in \{\text{prop},\text{vis}\}$.
+    
+    The state cost penalizes the tracking error,
+    \begin{align}
+        \mathbf Q = \begin{bmatrix}
+            1 & -1 \\
+            -1 & 1
+        \end{bmatrix},
+        \qquad
+        \mathbf R = \begin{bmatrix} c \end{bmatrix}.
+    \end{align}
 
-To handle the delays, we augment the latent state with the previous $\delta_\text{max} = \max(\delta_\text{prop},\delta_\text{vis})$ states,
-\begin{align}
-    \tilde\state_t = \left[\state_t, \state_{t-1}, \dots, \state_{t-\delta_\text{max}}\right]^\top,
-\end{align}
-and use the corresponding block-companion dynamics and block-diagonal state cost
-\begin{align}
-    \tilde\state_{t+1} &= \tilde{\mathbf A} \tilde\state_t + \tilde{\mathbf B} \action_t + \tilde{\statenoise}_t, \\
-    \tilde{\mathbf Q} &= \operatorname{blkdiag}(\mathbf Q, \mathbf 0, \dots, \mathbf 0).
-\end{align}
-The state cost penalizes the tracking error,
-\begin{align}
-    \mathbf Q = \begin{bmatrix}
-        1 & -1 \\
-        -1 & 1
-    \end{bmatrix},
-    \qquad
-    \mathbf R = \begin{bmatrix} c \end{bmatrix}.
-\end{align}
-
-The resulting model with a nonzero control cost parameter $c$ is the velocity control model with control cost. The corresponding control-cost-free version is the velocity control model without control cost, for which $c$ is set to a negligible value.
+    % The resulting model with a nonzero control cost parameter $c$ is the velocity control model with control cost. The corresponding control-cost-free version is the velocity control model without control cost, for which $c$ is set to a negligible value.
+ 
 
 \subsubsection{Point mass model}
 In the point mass model, the subject's hand follows a point-mass dynamical system with position, velocity, and force states, while the target still follows a random walk. In the code, this model is used in the form
@@ -118,23 +102,58 @@ In the point mass model, the subject's hand follows a point-mass dynamical syste
         x^\text{right}_t \\ x^\text{left}_t \\ v^\text{left}_t \\ f^\text{left}_t
     \end{bmatrix},
 \end{align}
-with point-mass dynamics matrices $\mathbf A_{\mathrm{pm}}$, $\mathbf B_{\mathrm{pm}}$, and $\mathbf \Sigma_{\mathrm{pm}}$ as in the implementation. The augmented generative model and delayed sensory observations are defined exactly as in the velocity control model, except that the observation matrix selects the position difference from the point-mass state.
-
-As above, we use the names point mass model with control cost and point mass model without control cost to distinguish the bounded-actor and control-cost-free versions.
-
-\subsubsection{Bias}
-To model a visual bias, we add a latent bias state $b_t$ that shifts the visual observation but not the proprioceptive observation. For the velocity control model, this gives the latent state
+with the left-hand component obtained from a continuous-time point-mass system \citep[see][for details]{kasuga2022integration}(see Kasuga et al., 2022). Concretely, the continuous-time dynamics for the hand's position, velocity and muscle force are
 \begin{align}
-    \state_t = \begin{bmatrix}
-        x^\text{right}_t \\ x^\text{left}_t \\ b_t
-    \end{bmatrix},
+    m \dot v^{\text{left}} &= - g v^{\text{left}} + f^{\text{left}}, \\
+    \tau \dot f^{\text{left}} &= - f^{\text{left}} + u,
 \end{align}
-with observation matrices
+where $g$ is a damping constant, $m$ the mass, $\tau$ the muscle time constant and $u$ the motor command. Writing these equations together with $\dot x^{\text{left}} = v^{\text{left}}$ yields a linear continuous-time system with matrices $\mathbf A_\mathrm{c}$ and $\mathbf B_\mathrm{c}$. Discretizing this linear system with time step $dt$ (using matrix exponential or standard zero-order hold discretization) yields the discrete-time matrices $\mathbf A_{\mathrm{pm}}$ and $\mathbf B_{\mathrm{pm}}$. The continuous-time process noise is transformed to the discrete-time covariance $\mathbf \Sigma_{\mathrm{pm}}$ via Van Loan's method \citep{van2003computing}.
+
+The full discrete-time dynamics for the whole state are therefore
 \begin{align}
-    \mathbf H_\text{prop} &= \begin{bmatrix} 1 & -1 & 0 \end{bmatrix},
-    && \mathbf H_\text{vis} = \begin{bmatrix} 0 & -1 & 1 \end{bmatrix}.
+    \mathbf A &= \operatorname{diag}(\Identity_1, \mathbf A_{\mathrm{pm}}), \\
+    \mathbf B &= \operatorname{diag}(0, \mathbf B_{\mathrm{pm}}), \\
+    \mathbf \Sigma_\state &= \operatorname{diag}(\sigma_\text{rw}^2, \mathbf \Sigma_{\mathrm{pm}}).
 \end{align}
-For the point mass model, the same idea is extended by adding the bias state to the point-mass latent dynamics, and the visual observation depends on the bias state while proprioception remains unbiased.
+
+% As above, we use the names point mass model with control cost and point mass model without control cost to distinguish the bounded-actor and control-cost-free versions.
+
+The state and action cost matrices for the point mass model penalize tracking error on the positions while leaving velocity and force unpenalized:
+\begin{align}
+    \mathbf Q &= \operatorname{diag}\left(\begin{bmatrix}1 & -1 \\ -1 & 1\end{bmatrix}, 0, 0\right), \\
+    \mathbf R &= \begin{bmatrix} c \end{bmatrix}.
+\end{align}
+
+\subsubsection{Delayed sensory observation model}
+
+Sensory observations are modelled as the signed difference between the right and left hand positions for each modality $k\in\{\text{prop},\text{vis}\}$:
+\begin{align}
+    \obs_t^{(k)} &= \mathbf H \state_{t-\delta_k} + \obsnoise_t^{(k)},
+    && \obsnoise_t^{(k)} \sim \Normal(\mathbf 0, \mathbf \Sigma_\obs^{(k)}), \\
+    \mathbf H &= \begin{bmatrix} 1 & -1 & 0 & \dots \end{bmatrix},
+    && \mathbf \Sigma_\obs^{(k)} = \begin{bmatrix} \sigma_k^2 \end{bmatrix}.
+\end{align}
+To handle sensory delays, we augment the latent state by stacking previous states up to the maximum delay $\delta_{\max}=\max_k \delta_k$ and use the block-companion form for the dynamics and a block-diagonal state cost \citep[see]{izawa2008line}:
+\begin{align}
+    \tilde\state_t &= \left[\state_t, \state_{t-1}, \dots, \state_{t-\delta_{\max}}\right]^\top, \\
+    \tilde\state_{t+1} &= \tilde{\mathbf A} \tilde\state_t + \tilde{\mathbf B} \action_t + \tilde{\statenoise}_t, \\
+    \tilde{\mathbf Q} &= \operatorname{blkdiag}(\mathbf Q, \mathbf 0, \dots, \mathbf 0).
+\end{align}
+We set $\delta_{\text{vis}} = 2$ and $\delta_{\text{prop}} = 1$, which at $dt=0.075\,$s corresponds to 150 ms and 75 ms sensory delays for vision and proprioception, respectively.
+
+% \subsubsection{Bias}
+% To model a visual bias, we add a latent bias state $b_t$ that shifts the visual observation but not the proprioceptive observation. For the velocity control model, this gives the latent state
+% \begin{align}
+%     \state_t = \begin{bmatrix}
+%         x^\text{right}_t \\ x^\text{left}_t \\ b_t
+%     \end{bmatrix},
+% \end{align}
+% with observation matrices
+% \begin{align}
+%     \mathbf H_\text{prop} &= \begin{bmatrix} 1 & -1 & 0 \end{bmatrix},
+%     && \mathbf H_\text{vis} = \begin{bmatrix} 0 & -1 & 1 \end{bmatrix}.
+% \end{align}
+% For the point mass model, the same idea is extended by adding the bias state to the point-mass latent dynamics, and the visual observation depends on the bias state while proprioception remains unbiased.
 
 \subsection{Model fitting}
 We fit the model to the behavioral data using inverse optimal control (IOC) for LQG system \citep{straub2022putting}. More concretely, IOC defines the likelihood of a trajectory of observed states conditional on the model parameters $p(\state_{1:T}^{(i)} \vert \bm \theta)$, where $\state_{1:T}^{(i)}$ is the sequence containing $T$ time steps of observed left and right hand positions in trial $i$. We assume that the individual trials are independent realizations of tracking behavior generated from the optimal control model with the same parameters $\bm \theta$, s.t. the likelihood of a dataset $\mathcal{D}$ is given by $p(\mathcal{D} \vert \bm \theta) = \prod_i p(\state_{1:T}^{(i)} \vert \bm \theta)$.
@@ -146,16 +165,16 @@ where $\sigma_{\text{vis},1}$ and $\sigma_{\text{vis},2}$ are the visual noise p
 
 We define weakly informative prior distributions over the parameters:
 \begin{align*}
-    c &\sim \text{HalfNormal}(0.5) \\
-    \sigma_\text{action} &\sim \text{HalfNormal}(10) \\
-    \sigma_\text{prop} &\sim \text{HalfNormal}(10) \\ 
-    \sigma_{\text{vis},1}, \sigma_{\text{vis},2} &\sim \text{HalfNormal}(10) 
+    c &\sim \text{HalfNormal}(1) \\
+    \sigma_\text{action} &\sim \text{HalfNormal}(1) \\
+    \sigma_\text{prop} &\sim \text{HalfNormal}(40) \\ 
+    \sigma_{\text{vis},1}, \sigma_{\text{vis},2} &\sim \text{HalfNormal}(40) 
 \end{align*}
 
 To test for optimal integration of visual and proprioceptive information, we consider different versions of the model. They differ only in how the multisensory condition is modeled, while the unisensory (visual and proprioceptive) conditions are always modeled in the same way. 
 \begin{enumerate}
-    \item In the \textit{optimal integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
-    \item In the \textit{no integration} model, only the more reliable sensory modality is used in the multisensory condition (i.e. proprioception).
+    % \item In the \textit{optimal integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
+    \item In the \textit{proprioceptive dominance} model, only the proprioceptive sensory modality is used in the multisensory condition.
     \item In the \textit{equal integration} model, we assume that averaging happens at the level of parameters, such that both sensory modalities use the same parameter $\sigma_i = \sqrt{( \sigma_{\text{vis},i}^2 + \sigma_\text{prop}^2) / 2}$ in the multisensory condition, while unisensory conditions still use their own modality-specific parameters $\sigma_{\text{vis},i}$ and $\sigma_\text{prop}$, respectively.    
 \end{enumerate}
  
