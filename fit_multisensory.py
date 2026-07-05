@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument(
         "--model_class",
         type=str,
-        default="MultisensoryDelayModel",
+        default="BoundedActorPointMassDynamics",
         help="Model class to fit",
     )
     parser.add_argument(
@@ -57,15 +57,22 @@ def filename_from_args(args):
     indicator = "_".join(map(str, vars(args).values()))
     return indicator
 
+
 default_priors = {
-    "sigma_vis": dist.HalfNormal(40.0).expand([2]),
-    "sigma_prop": dist.HalfNormal(40.0),
-    "action_variability": dist.HalfNormal(1.),
-    "action_cost": dist.HalfNormal(1.),
+    "sigma_vis": dist.HalfNormal(20.0).expand([2]),
+    "sigma_prop": dist.HalfNormal(20.0),
+    "action_variability": dist.HalfNormal(1.0),
+    "action_cost": dist.HalfNormal(1.0),
 }
 
+
 def optimal_integration_model(
-    data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors,
+    data,
+    delays,
+    dt=0.075,
+    obs=True,
+    model_class=BoundedActor,
+    priors=default_priors,
 ):
 
     # priors
@@ -124,7 +131,9 @@ def optimal_integration_model(
         )
 
 
-def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors):
+def no_integration_model(
+    data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors
+):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
     sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
@@ -181,7 +190,68 @@ def no_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedAc
         )
 
 
-def equal_integration_model(data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors):
+def vision_only_model(
+    data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors
+):
+    # priors
+    sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
+    sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
+
+    motor_params = {}
+    if model_class in [
+        multisensory.OptimalActorPointMassDynamics,
+        multisensory.OptimalActor,
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
+    ]:
+        motor_params["action_variability"] = numpyro.sample(
+            "action_variability", priors["action_variability"]
+        )
+
+    if model_class in [
+        multisensory.BoundedActorPointMassDynamics,
+        multisensory.BoundedActor,
+    ]:
+        motor_params["action_cost"] = numpyro.sample(
+            "action_cost", priors["action_cost"]
+        )
+
+    for (condition, vis_noise), x in data.items():
+        T = x.shape[1]
+
+        if condition == "multi":
+            model = model_class(
+                process_noise=1.2,
+                sigmas=[sigma_vis[vis_noise - 1]],
+                delays=[delays["prop"]],
+                dt=dt,
+                T=T - 1,
+                **motor_params,
+            )
+        else:
+            delay = delays[condition]
+            model = model_class(
+                process_noise=1.2,
+                sigmas=[
+                    sigma_prop if condition == "prop" else sigma_vis[vis_noise - 1]
+                ],
+                delays=[delay],
+                dt=dt,
+                T=T - 1,
+                **motor_params,
+            )
+
+        # likelihood
+        numpyro.sample(
+            f"x_{condition}_{vis_noise}",
+            model.to_numpyro(xdim=x.shape[-1]),
+            obs=x if obs else None,
+        )
+
+
+def equal_integration_model(
+    data, delays, dt=0.075, obs=True, model_class=BoundedActor, priors=default_priors
+):
     # priors
     sigma_vis = numpyro.sample("sigma_vis", priors["sigma_vis"])
     sigma_prop = numpyro.sample("sigma_prop", priors["sigma_prop"])
@@ -243,8 +313,8 @@ models = {
     "optimal": optimal_integration_model,
     "no_integration": no_integration_model,
     "equal_integration": equal_integration_model,
+    "vision_only": vision_only_model,
 }
-
 
 
 if __name__ == "__main__":
@@ -265,7 +335,9 @@ if __name__ == "__main__":
                 condition=condition,
                 vis_noise=vis_noise,
             )
-            print(f"Data shape for condition {condition} and vis_noise {vis_noise}: {cond_data.shape}")
+            print(
+                f"Data shape for condition {condition} and vis_noise {vis_noise}: {cond_data.shape}"
+            )
 
             data[(condition, vis_noise)] = cond_data
 

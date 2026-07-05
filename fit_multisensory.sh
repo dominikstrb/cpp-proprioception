@@ -25,12 +25,14 @@ participants=(
 for participant in "${participants[@]}"; do
     source .venv/bin/activate
     echo "Fitting participant $participant"
-    nohup python fit_multisensory.py --participant $participant --model optimal --model_class BoundedActorPointMassDynamics --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-optimal-BoundedActorPointMassDynamics.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class BoundedActorPointMassDynamics --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-no_integration-BoundedActorPointMassDynamics.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class BoundedActorPointMassDynamics --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-equal_integration-BoundedActorPointMassDynamics.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model optimal --model_class BoundedActor --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-optimal-BoundedActor.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class BoundedActor --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-no_integration-BoundedActor.out 2>&1 &
-    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class BoundedActor --seed 1 --nwarmup 2000 --nsamp 2500 > logs/$participant-equal_integration-BoundedActor.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model optimal --model_class BoundedActorPointMassDynamics --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-optimal-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class BoundedActorPointMassDynamics --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-no_integration-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class BoundedActorPointMassDynamics --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-equal_integration-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model vision_only --model_class BoundedActorPointMassDynamics --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-vision_only-BoundedActorPointMassDynamics.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model optimal --model_class BoundedActor --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-optimal-BoundedActor.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model no_integration --model_class BoundedActor --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-no_integration-BoundedActor.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model equal_integration --model_class BoundedActor --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-equal_integration-BoundedActor.out 2>&1 &
+    nohup python fit_multisensory.py --participant $participant --model vision_only --model_class BoundedActor --seed 3 --nwarmup 2500 --nsamp 2500 > logs/$participant-vision_only-BoundedActor.out 2>&1 &
     wait
     echo "Finished fitting participant $participant"
 done

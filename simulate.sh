@@ -6,7 +6,7 @@ participants=(
     177196795
     182095555
     212056115
-    330954011
+    # 330954011
     524048600
     544725341
     644801403
@@ -22,7 +22,24 @@ participants=(
     918338248
 )
 
+models=(
+    "equal_integration"
+    "no_integration"
+)
+
+model_classes=(
+    "BoundedActorPointMassDynamics"
+    "BoundedActor"
+)
+
+source .venv/bin/activate
+
 for participant in "${participants[@]}"; do
-    source .venv/bin/activate
-    python simulate_multisensory.py --participant $participant --model_class MultisensoryDelayModelPointMassDynamics
+    for model in "${models[@]}"; do
+        for model_class in "${model_classes[@]}"; do
+            echo "Simulating participant $participant, model $model, class $model_class"
+            nohup python simulate_multisensory.py --participant $participant --model $model --model_class $model_class --conditions prop vis multi > logs/simulate.log 2>&1 &
+            wait
+        done
+    done
 done
