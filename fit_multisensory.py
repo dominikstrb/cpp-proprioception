@@ -223,7 +223,7 @@ def vision_only_model(
             model = model_class(
                 process_noise=1.2,
                 sigmas=[sigma_vis[vis_noise - 1]],
-                delays=[delays["prop"]],
+                delays=[delays["vis"]],
                 dt=dt,
                 T=T - 1,
                 **motor_params,
@@ -366,6 +366,6 @@ if __name__ == "__main__":
 
     # save model fit
     inference_data = az.from_numpyro(mcmc, posterior_predictive=samples_predictive)
-    inference_data.to_netcdf(f"results/multisensory-mcmc-{filename_from_args(args)}.nc")
+    inference_data.to_netcdf(f"results/multisensory_fits/multisensory-mcmc-{filename_from_args(args)}.nc")
 
     print(f"Finished fitting model {args.model} for participant {args.participant}!")

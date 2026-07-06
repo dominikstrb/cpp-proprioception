@@ -6,42 +6,25 @@ from cppp.load import load_multisensory_data
 from cppp.utils import concat_log_likelihoods
 
 
-def load_model(participant, model_name, model_class, seeds=None, num_warmups=None):
+def load_model(participant, model_name, model_class, seed=7452):
 
-    if seeds is None:
-        # seeds = [1, 2, 7452]
-        seeds = [3]
 
-    if num_warmups is None:
-        num_warmups = [2500, 2500]
-    seed_idx = 0
-    while seed_idx < len(seeds):
-        seed = seeds[seed_idx]
+  
+    model = az.from_netcdf(
+        f"results/multisensory_fits/multisensory-mcmc-{participant}_1_2_{seed}_2000_2500_4_{model_name}_{model_class}_['prop', 'vis', 'multi'].nc"
+    )
 
-        for num_warmup in num_warmups:
-            try:
-                model = az.from_netcdf(
-                    f"results/multisensory-mcmc-{participant}_1_2_{seed}_{num_warmup}_2500_4_{model_name}_{model_class}_['prop', 'vis', 'multi'].nc"
-                )
-                break
-            except FileNotFoundError:
-                print(
-                    f"Model {model_name} for participant {participant} with seed {seed} and num_warmup {num_warmup} not found."
-                )
 
-        if az.summary(model)["r_hat"].max() > 1.1:
-            print(
-                f"Model {model_name} for participant {participant} with seed {seed} has r_hat > 1.1."
-            )
-            seed_idx += 1
-            # model = None
-        else:
-            break
+    if az.summary(model)["r_hat"].max() > 1.1:
+        model = None
+
 
     if model is None:
         raise ValueError(
             f"Model {model_name} for participant {participant} not found or has r_hat > 1.1 for all seeds."
         )
+    else:
+        print(f"Found valid model {model_name} for participant {participant}")
 
     return model
 
@@ -49,12 +32,12 @@ def load_model(participant, model_name, model_class, seeds=None, num_warmups=Non
 if __name__ == "__main__":
     participants = load_multisensory_data(base_path="data")["participant"].unique()
 
-    participants_to_exclude = []
+    participants_to_exclude = [173058413, 330954011, 657093471]
 
-    participants = participants[:8]
+    # participants = participants[:8]
     participants = [p for p in participants if p not in participants_to_exclude]
 
-    model_names = ["equal_integration", "no_integration", "vision_only"]
+    model_names = ["equal_integration", "no_integration", "optimal"]
 
     model_classes = ["BoundedActorPointMassDynamics", "BoundedActor"]
 
@@ -71,7 +54,7 @@ if __name__ == "__main__":
 
                 model = load_model(participant, model_name, model_class)
 
-                model.posterior["action_cost"] = model.posterior["action_cost"] * 100.0
+                # arbitrary rescaling of the action cost parameter for visualization purposes
                 model.posterior["vis_prop_diff"] = (
                     model.posterior["sigma_vis"] - model.posterior["sigma_prop"]
                 )

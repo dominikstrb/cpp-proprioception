@@ -305,7 +305,7 @@ class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
         super().__init__(actor=actor, dynamics=dynamics)
 
 
-class BiasMultisensoryDelayModel(System):
+class BiasBoundedActor(System):
     def __init__(
         self,
         process_noise=1.0,
@@ -352,7 +352,7 @@ class BiasMultisensoryDelayModel(System):
         super().__init__(actor=spec, dynamics=spec)
 
 
-class BiasMultisensoryDelayModelPointMassDynamics(System):
+class BiasBoundedActorPointMassDynamics(System):
     def __init__(
         self,
         process_noise=1.0,
@@ -392,7 +392,7 @@ class BiasMultisensoryDelayModelPointMassDynamics(System):
             jnp.array([[0.0, -1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.0, 0.0]]),
         ]
 
-        Q = jnp.array(
+        Q = 500 * jnp.array(
             [
                 [1.0, -1.0, 0.0, 0.0, 0.0],
                 [-1.0, 1.0, 0.0, 0.0, 0.0],
