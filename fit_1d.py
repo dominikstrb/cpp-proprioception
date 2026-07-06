@@ -110,13 +110,7 @@ if __name__ == "__main__":
 
     # --- Load and preprocess data ---
     df = load_data(pos=args.pos)
-    xy_array = preprocess_data(df, lag=1)
-    if args.dim == "x":
-        data = xy_array[..., :2]
-    elif args.dim == "y":
-        data = xy_array[..., 2:]
-    else:
-        raise ValueError("Can only fit either x or y dimension")
+    data = preprocess_data(df, lag=1, dim=args.dim)
 
     print(data.shape)
 
@@ -128,20 +122,19 @@ if __name__ == "__main__":
 
     # --- Run MCMC for model fitting ---
     nuts_kernel = NUTS(lqg_model, init_strategy=numpyro.infer.init_to_median)
-    mcmc_xy = MCMC(
+    mcmc = MCMC(
         nuts_kernel,
         num_warmup=args.nwarmup,
         num_samples=args.nsamp,
         num_chains=args.nchain,
     )
-    mcmc_xy.run(random.PRNGKey(args.seed), xy_array, process_noise, ModelType)
+    mcmc.run(random.PRNGKey(args.seed), data, process_noise, ModelType)
 
-    inference_data_xy = az.from_numpyro(mcmc_xy)
+    idata = az.from_numpyro(mcmc)
 
-    if args.save:
-        inference_data_xy.to_netcdf(
-            f"results/1d/mcmc-{args.pos}-{args.model}-{args.seed}.nc"
-        )
+    idata.to_netcdf(
+        f"results/1d/{filename_from_args(args)}.nc"
+    )
 
-    summary_xy = az.summary(inference_data_xy)
-    print(summary_xy)
+    summary = az.summary(idata)
+    print(summary)

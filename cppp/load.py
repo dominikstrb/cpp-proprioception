@@ -14,7 +14,7 @@ def load_data(pos, data_dir="data/MLMC_Data/"):  # Update if needed
     return df
 
 
-def preprocess_data(df, lag=1):
+def preprocess_data(df, lag=1, dim="x"):
     # --- Step 1: Baseline subtract per Trajectory_ID ---
     df = df.groupby("Trajectory_ID", group_keys=False).apply(subtract_baseline)
 
@@ -80,10 +80,14 @@ def preprocess_data(df, lag=1):
         x_array = np.stack([x_array[:, :-lag, 0], x_array[:, lag:, 1]], axis=-1)
         y_array = np.stack([y_array[:, :-lag, 0], y_array[:, lag:, 1]], axis=-1)
 
-    xy_array = np.concatenate([x_array, y_array], axis=-1)
-    print("Final shape of XY array:", xy_array.shape)
-
-    return xy_array
+    if dim == "x":
+        return x_array
+    elif dim == "y":
+        return y_array
+    elif dim == "xy":
+        xy_array = np.concatenate([x_array, y_array], axis=-1)
+        print("Final shape of XY array:", xy_array.shape)
+        return xy_array
 
 
 def subtract_baseline(group):
