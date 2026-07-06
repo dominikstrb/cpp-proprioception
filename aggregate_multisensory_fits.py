@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     participants_to_exclude = []
 
-    participants = participants[:3]
+    participants = participants[:8]
     participants = [p for p in participants if p not in participants_to_exclude]
 
     model_names = ["equal_integration", "no_integration", "vision_only"]
