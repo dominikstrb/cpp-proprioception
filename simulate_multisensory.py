@@ -5,7 +5,7 @@ from lqg import xcorr
 from jax import random, numpy as jnp, jit
 import pandas as pd
 
-from cppp.load import preprocess_multisensory_data, load_multisensory_data
+from cppp.load import load_multisensory_data
 from cppp.models import multisensory
 from fit_multisensory import filename_from_args, parse_args
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # load the inference data for all models
     models = {
         model_name: az.from_netcdf(
-            f"results/multisensory-mcmc-{args.participant}_{args.prop_delay}_{args.vis_delay}_{args.seed}_{args.nwarmup}_{args.nsamp}_{args.nchain}_{model_name}_{args.model_class}_{args.conditions}.nc"
+            f"results/multisensory_fits/multisensory-mcmc-{args.participant}_{args.prop_delay}_{args.vis_delay}_{args.seed}_{args.nwarmup}_{args.nsamp}_{args.nchain}_{model_name}_{args.model_class}_{args.conditions}.nc"
         )
         for model_name in ["optimal", "no_integration", "equal_integration"]
     }
@@ -121,17 +121,7 @@ if __name__ == "__main__":
 
     df = load_multisensory_data()
 
-    data = {}
-    for condition in df["type"].unique():
-        for vis_noise in df["vis_noise"].unique():
-            data[(condition, vis_noise)] = preprocess_multisensory_data(
-                df,
-                participant=args.participant,
-                condition=condition,
-                vis_noise=vis_noise,
-            )
-
-    ppc_dfs = []
+    sim_ppc_dfs = []
     for k, (model_name, model) in enumerate(models.items()):
         # print(model.log_likelihood["x_multi_1"].shape)
         print(f"Simulating model: {model_name}")
@@ -145,51 +135,28 @@ if __name__ == "__main__":
             for j, vis_noise in enumerate([1, 2]):
                 sim_data = model.posterior_predictive[f"x_{condition}_{vis_noise}"]
 
-            sim_vels = np.diff(sim_data, axis=-2)
-            lags, sim_correls = xcorr(sim_vels[..., 1], sim_vels[..., 0], maxlags=50)
+                sim_vels = np.diff(sim_data, axis=-2)
+                lags, sim_correls = xcorr(sim_vels[..., 1], sim_vels[..., 0], maxlags=50)
 
-            vels = np.diff(data[(condition, vis_noise)], axis=-2)
-            lags, correls = xcorr(vels[..., 1], vels[..., 0], maxlags=50)
-
-            ppc_dfs.append(
-                pd.DataFrame(
-                    {
-                        "participant": args.participant,
-                        "model": model_name,
-                        "condition": condition,
-                        "vis_noise": vis_noise,
-                        "lag": lags * dt,
-                        "correlation": sim_correls.mean(axis=(0, 1)),
-                    }
-                )
-            )
-
-            if k == 0:  # only save the real data once (when plotting the first model)
-                ppc_dfs.append(
+                sim_ppc_dfs.append(
                     pd.DataFrame(
                         {
                             "participant": args.participant,
-                            "model": "data",
+                            "model": model_name,
+                            "model_class": args.model_class,
                             "condition": condition,
                             "vis_noise": vis_noise,
                             "lag": lags * dt,
-                            "correlation": correls.mean(axis=0),
+                            "correlation": sim_correls.mean(axis=(0, 1)),
                         }
                     )
                 )
 
-    ppc_df = pd.concat(ppc_dfs, ignore_index=True)
-    ppc_df.to_csv(
+    sim_ppc_df = pd.concat(sim_ppc_dfs, ignore_index=True)
+    sim_ppc_df.to_csv(
         f"results/ppc/multisensory-simulations-ppc-{filename_from_args(args)}.csv",
         index=False,
     )
-
-    # get current participant's data
-    df = df[df["participant"] == args.participant]
-
-    # compute tracking error
-    df["tracking_error"] = df["righty_pos"] - df["lefty_pos"]
-    df["tracking_mse"] = df["tracking_error"] ** 2
 
     print("Simulating calibration phase for all models...")
     # simulate calibration phase
@@ -224,6 +191,7 @@ if __name__ == "__main__":
                                 "vis_noise": vis_noise,
                                 "trial_number": trial_number,
                                 "model": model_name,
+                                "model_class": args.model_class,
                                 "righty_pos": x_i[:, 0],
                                 "lefty_pos": x_i[:, 1],
                                 "repetition": rep,
