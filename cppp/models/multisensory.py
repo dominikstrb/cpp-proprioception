@@ -88,49 +88,6 @@ class BoundedActor(System):
         super().__init__(actor=spec, dynamics=spec)
 
 
-class OptimalActor(BoundedActor):
-    def __init__(
-        self,
-        process_noise=1.0,
-        sigmas=[1.0, 1.0],
-        action_variability=0.5,
-        dt=0.075,
-        delays=[1, 1],
-        T=1000,
-    ):
-
-        super().__init__(
-            process_noise=process_noise,
-            sigmas=sigmas,
-            action_variability=action_variability,
-            action_cost=1e-6,  # set action cost to a very small value to approximate the actor without action cost
-            dt=dt,
-            delays=delays,
-            T=T,
-        )
-
-
-class IdealObserver(BoundedActor):
-    def __init__(
-        self,
-        process_noise=1.0,
-        sigmas=[1.0, 1.0],
-        dt=0.075,
-        delays=[1, 1],
-        T=1000,
-    ):
-
-        super().__init__(
-            process_noise=process_noise,
-            sigmas=sigmas,
-            action_variability=1e-6,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
-            action_cost=1e-6,  # set action cost to a very small value to approximate the ideal observer who does not take into account action cost
-            dt=dt,
-            delays=delays,
-            T=T,
-        )
-
-
 class BoundedActorPointMassDynamics(System):
     def __init__(
         self,
@@ -175,134 +132,6 @@ class BoundedActorPointMassDynamics(System):
             T=T,
         )
         super().__init__(actor=spec, dynamics=spec)
-
-
-class OptimalActorPointMassDynamics(BoundedActorPointMassDynamics):
-    def __init__(
-        self,
-        process_noise=1.0,
-        sigmas=[1.0, 1.0],
-        action_variability=0.5,
-        damping=0.0015,
-        m=1.0,
-        tau=0.066,
-        dt=0.075,
-        delays=[1, 1],
-        T=1000,
-    ):
-
-        super().__init__(
-            process_noise=process_noise,
-            sigmas=sigmas,
-            action_variability=action_variability,
-            action_cost=1e-6,  # set action cost to a very small value to approximate the actor without action cost
-            damping=damping,
-            m=m,
-            tau=tau,
-            dt=dt,
-            delays=delays,
-            T=T,
-        )
-
-
-class IdealObserverPointMassDynamics(BoundedActorPointMassDynamics):
-    def __init__(
-        self,
-        process_noise=1.0,
-        sigmas=[1.0, 1.0],
-        damping=0.0015,
-        m=1.0,
-        tau=0.066,
-        dt=0.075,
-        delays=[1, 1],
-        T=1000,
-    ):
-
-        super().__init__(
-            process_noise=process_noise,
-            sigmas=sigmas,
-            action_variability=1e-2,  # set action variability to a very small value to approximate the ideal observer who does not take into account action variability
-            action_cost=1e-6,  # set action cost to a very small value to approximate the ideal observer who does not take into account action cost
-            damping=damping,
-            m=m,
-            tau=tau,
-            dt=dt,
-            delays=delays,
-            T=T,
-        )
-
-
-class SubjectiveMultisensoryDelayModelPointMassDynamics(System):
-    def __init__(
-        self,
-        process_noise=1.0,
-        subj_process_noise=1.0,
-        subj_vel_process_noise=0.0,
-        sigmas=[1.0, 1.0],
-        action_variability=0.5,
-        action_cost=0.1,
-        damping=0.0015,
-        m=1.0,
-        tau=0.066,
-        dt=0.075,
-        delays=[1, 1],
-        T=1000,
-    ):
-
-        A, B, V = point_mass_dynamics_matrices(damping, m, tau, action_variability, dt)
-
-        # add target dimension to the dynamics
-        A_dynamics = linalg.block_diag(jnp.eye(1), A)
-        B_dynamics = jnp.vstack([jnp.zeros((1, 1)), B])
-
-        # In the subjective internal model, there is a velocity component to the random walk
-        A_actor = linalg.block_diag(jnp.eye(1), A, jnp.eye(1))
-        A_actor = A_actor.at[0, -1].set(dt)
-        B_actor = jnp.vstack([jnp.zeros((1, 1)), B, jnp.zeros((1, 1))])
-
-        V_actor = linalg.block_diag(
-            jnp.diag(jnp.array([subj_process_noise])),
-            V,
-            jnp.diag(jnp.array([subj_vel_process_noise])),
-        )
-        V_dynamics = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
-
-        F = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
-        F_actor = jnp.hstack([F, jnp.zeros((2, 1))])
-        Q_dynamics = jnp.array(
-            [
-                [1.0, -1.0, 0.0, 0.0],
-                [-1.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0],
-            ]
-        )
-        Q_actor = linalg.block_diag(Q_dynamics, jnp.zeros((1, 1)))
-        R = B.T @ B * jnp.array([[action_cost]])
-
-        actor = multisensory_delay_system(
-            A_actor,
-            B_actor,
-            V_actor,
-            [F_actor for _ in sigmas],
-            [sigma * jnp.eye(2) for sigma in sigmas],
-            Q_actor,
-            R,
-            delays=delays,
-            T=T,
-        )
-        dynamics = multisensory_delay_system(
-            A_dynamics,
-            B_dynamics,
-            V_dynamics,
-            [F for _ in sigmas],
-            [sigma * jnp.eye(2) for sigma in sigmas],
-            Q_dynamics,
-            R,
-            delays=delays,
-            T=T,
-        )
-        super().__init__(actor=actor, dynamics=dynamics)
 
 
 class BiasBoundedActor(System):
@@ -365,7 +194,7 @@ class BiasBoundedActorPointMassDynamics(System):
         tau=0.066,
         delays=[1, 1],
         T=1000,
-        knows_about_bias=False,
+        obs_indices=None
     ):
 
         A, B, V = point_mass_dynamics_matrices(
@@ -387,10 +216,15 @@ class BiasBoundedActorPointMassDynamics(System):
         # the second element of the sensory feedback is the proprioceptive feedback of the velocity
         # the third element of the sensory feedback is the visual feedback, which is biased by the third element of the state vector
         # the fourth element of the sensory feedback is the visual feedback of the velocity
+        
         Fs = [
             jnp.array([[1.0, -1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0, 0.0]]),
             jnp.array([[0.0, -1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.0, 0.0]]),
         ]
+        if obs_indices:
+            Fs = [Fs[obs_idx] for obs_idx in obs_indices]
+
+        Ws = [sigma * jnp.eye(2) for sigma in sigmas]
 
         Q = 500 * jnp.array(
             [
@@ -408,40 +242,12 @@ class BiasBoundedActorPointMassDynamics(System):
             B=B_dynamics,
             V=V_dynamics,
             Fs=Fs,
-            Ws=[sigma * jnp.eye(2) for sigma in sigmas],
+            Ws=Ws,
             Q=Q,
             R=R,
             delays=delays,
             T=T,
         )
 
-        if knows_about_bias:
-            actor = spec
-        else:
-            A_subj = linalg.block_diag(jnp.eye(1), A)
-            B_subj = jnp.vstack([jnp.zeros((1, 1)), B])
-            V_subj = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
-            F_subj = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
-            Q_subj = jnp.array(
-                [
-                    [1.0, -1.0, 0.0, 0.0],
-                    [-1.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                ]
-            )
-            R_subj = jnp.array([[action_cost]])
-
-            actor = multisensory_delay_system(
-                A_subj,
-                B_subj,
-                V_subj,
-                [F_subj for _ in sigmas],
-                [sigma * jnp.eye(2) for sigma in sigmas],
-                Q_subj,
-                R_subj,
-                delays=delays,
-                T=T,
-            )
-
+        actor = spec
         super().__init__(actor=actor, dynamics=spec)

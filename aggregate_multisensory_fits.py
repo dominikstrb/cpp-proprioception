@@ -11,11 +11,11 @@ def load_model(participant, model_name, model_class, seed=7452):
 
   
     model = az.from_netcdf(
-        f"results/multisensory_fits/multisensory-mcmc-{participant}_1_2_{seed}_2000_2500_4_{model_name}_{model_class}_['prop', 'vis', 'multi'].nc"
+        f"results/multisensory_fits/multisensory-mcmc-{participant}_1_2_{seed}_2500_2500_4_{model_name}_{model_class}_['prop', 'vis', 'multi'].nc"
     )
 
 
-    if az.summary(model)["r_hat"].max() > 1.1:
+    if az.summary(model)["r_hat"].max() > 1.05:
         model = None
 
 
@@ -32,12 +32,12 @@ def load_model(participant, model_name, model_class, seed=7452):
 if __name__ == "__main__":
     participants = load_multisensory_data(base_path="data")["participant"].unique()
 
-    participants_to_exclude = [173058413, 330954011, 657093471]
+    participants_to_exclude = [173058413, 330954011]
 
     # participants = participants[:8]
     participants = [p for p in participants if p not in participants_to_exclude]
 
-    model_names = ["equal_integration", "no_integration", "optimal"]
+    model_names = ["equal_integration", "no_integration", "optimal", "vision_only"]
 
     model_classes = ["BoundedActorPointMassDynamics", "BoundedActor"]
 
@@ -50,9 +50,8 @@ if __name__ == "__main__":
         # load the models for this participant
         for model_name in model_names:
             for model_class in model_classes:
-                seed_idx = 0
 
-                model = load_model(participant, model_name, model_class)
+                model = load_model(participant, model_name, model_class, seed=3)
 
                 # arbitrary rescaling of the action cost parameter for visualization purposes
                 model.posterior["vis_prop_diff"] = (

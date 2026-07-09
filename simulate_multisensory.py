@@ -51,6 +51,7 @@ if __name__ == "__main__":
                 delays=delay_list,
                 dt=dt,
                 T=168,
+                obs_indices=(0,)
             )
         elif model_name == "vision_only":
             delay_list = [delays["vis"]]
@@ -62,6 +63,7 @@ if __name__ == "__main__":
                 delays=delay_list,
                 dt=dt,
                 T=168,
+                obs_indices=(1,)
             )
         elif model_name == "equal_integration":
             delay_list = [delays["prop"], delays["vis"]]
@@ -104,7 +106,7 @@ if __name__ == "__main__":
         model_name: az.from_netcdf(
             f"results/multisensory_fits/multisensory-mcmc-{args.participant}_{args.prop_delay}_{args.vis_delay}_{args.seed}_{args.nwarmup}_{args.nsamp}_{args.nchain}_{model_name}_{args.model_class}_{args.conditions}.nc"
         )
-        for model_name in ["optimal", "no_integration", "equal_integration"]
+        for model_name in ["optimal", "no_integration", "equal_integration", "vision_only"]
     }
 
     # create arviz summaries for all models
