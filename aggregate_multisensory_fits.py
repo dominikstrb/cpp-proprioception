@@ -10,16 +10,12 @@ from cppp.utils import concat_log_likelihoods
 
 def load_model(participant, model_name, model_class, seed=7452):
 
-
-  
     model = az.from_netcdf(
         f"results/multisensory_fits/multisensory-mcmc-{participant}_1_2_{seed}_2500_2500_4_{model_name}_{model_class}_['prop', 'vis', 'multi'].nc"
     )
 
-
     if az.summary(model)["r_hat"].max() > 1.05:
         model = None
-
 
     if model is None:
         raise ValueError(
@@ -45,7 +41,6 @@ if __name__ == "__main__":
 
     summaries = []
     loos = []
-    pointwise_elpds = defaultdict(list)
     for participant in participants:
         # dict for model comparisons
         models = {}
@@ -53,7 +48,6 @@ if __name__ == "__main__":
         # load the models for this participant
         for model_name in model_names:
             for model_class in model_classes:
-
                 model = load_model(participant, model_name, model_class, seed=3)
 
                 # arbitrary rescaling of the action cost parameter for visualization purposes
@@ -80,9 +74,6 @@ if __name__ == "__main__":
                 p_problematic = (loo.pareto_k.to_numpy() > 0.7).sum() / len(
                     loo.pareto_k.to_numpy()
                 )
-
-                key = (model_name, model_class)
-                pointwise_elpds[key].append(loo.loo_i.values)
 
                 loo["integration"] = model_name
                 loo["model"] = model_class

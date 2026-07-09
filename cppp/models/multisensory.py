@@ -144,6 +144,7 @@ class BiasBoundedActor(System):
         dt=0.075,
         delays=[1, 1],
         T=1000,
+        obs_indices=None,
     ):
 
         # generative model that has a bias term
@@ -153,6 +154,9 @@ class BiasBoundedActor(System):
         # the first element of the sensory feedback is the proprioceptive feedback
         # the second element of the sensory feedback is the visual feedback, which is biased by the third element of the state vector
         Fs = [jnp.array([[1.0, -1.0, 0.0]]), jnp.array([[0.0, -1.0, 1.0]])]
+        if obs_indices:
+            Fs = [Fs[obs_idx] for obs_idx in obs_indices]
+
 
         # here, we apply the same noise to the position and the biased visual position,
         # which means that the noise is shared across the two sensory modalities
