@@ -13,7 +13,7 @@
 \addbibresource{references.bib}
 
 
-\title{Supplementary material: Continuous proprioception model }
+\title{Supplementary material: Continuous multsisensory proprioception model}
 % \author{Dominik Straub}
 % \date{March 2026}
 
@@ -23,13 +23,13 @@
 
 \maketitle
 
-\section{Methods}
+\section{Optimal control model details}
 \subsection{General equations for LQG control}
     The state of the environment $\state_t$ evolves as a function of the previous state and the action $\action_t$ performed by the agent according to a discrete-time linear dynamical system with Gaussian noise
 \begin{align}\label{eq:dynamics}
     \state_{t+1} \sim \Normal(\mathbf A \state_t + \mathbf B \action_t, \mathbf \Sigma_\state),
 \end{align}
-whose covariance is $\mathbf \Sigma_\state$.
+with noise covariance $\mathbf \Sigma_\state$.
 
 At each time step, the agent receives a noisy observation $\obs_t$ of the state,  
 \begin{align}\label{eq:obsmodel}
@@ -42,7 +42,7 @@ The cost function is quadratic in the state and the actions
     \sum_{t=1}^T \state_t^\top \mathbf Q \state_t + \action_t^\top \mathbf R \action_t.
 \end{align}
 
-This control problem is called linear-quadratic-Gaussian (LQG) control and has a well-known optimal solution, which is composed of optimal state estimation (Kalman filter, KF) and optimal control (linear-quadratic regulator, LQR).
+This control problem is called linear-quadratic-Gaussian (LQG) control and has a well-known optimal solution, which is composed of optimal state estimation using the Kalman filter \citep[KF:][]{kalman1960new} and optimal feedback control using the linear-quadratic regulator \citep[LQR:][]{kalman1960contributions}
 
 The KF iteratively computes a posterior distribution about the state given a sequence of sensory observations $p(\state_t \vert \obs_{1}, \dots, \obs_t) = \mathcal{N}(\stateestimate_t, \mathbf \Sigma_t)$, where the mean state estimate and its covariance are updated according to
 \begin{align}
@@ -89,8 +89,9 @@ where the target follows a random walk and the subject controls the velocity of 
             -1 & 1
         \end{bmatrix},
         \qquad
-        \mathbf R = \begin{bmatrix} c \end{bmatrix}.
+        \mathbf R = \begin{bmatrix} c \end{bmatrix},
     \end{align}
+    where $c$ is a free parameter representing the scaling of the action cost.
 
     % The resulting model with a nonzero control cost parameter $c$ is the velocity control model with control cost. The corresponding control-cost-free version is the velocity control model without control cost, for which $c$ is set to a negligible value.
  
@@ -102,7 +103,7 @@ In the point mass model, the subject's hand follows a point-mass dynamical syste
         x^\text{right}_t \\ x^\text{left}_t \\ v^\text{left}_t \\ f^\text{left}_t
     \end{bmatrix},
 \end{align}
-with the left-hand component obtained from a continuous-time point-mass system \citep[see][for details]{kasuga2022integration}(see Kasuga et al., 2022). Concretely, the continuous-time dynamics for the hand's position, velocity and muscle force are
+with the left-hand component obtained from a continuous-time point-mass system commonly used to model reaching movements \citep[see e.g.][for details]{kasuga2022integration}. Concretely, the continuous-time dynamics for the hand's position, velocity and muscle force are
 \begin{align}
     m \dot v^{\text{left}} &= - g v^{\text{left}} + f^{\text{left}}, \\
     \tau \dot f^{\text{left}} &= - f^{\text{left}} + u,
@@ -116,49 +117,77 @@ The full discrete-time dynamics for the whole state are therefore
     \mathbf \Sigma_\state &= \operatorname{diag}(\sigma_\text{rw}^2, \mathbf \Sigma_{\mathrm{pm}}).
 \end{align}
 
-% As above, we use the names point mass model with control cost and point mass model without control cost to distinguish the bounded-actor and control-cost-free versions.
-
-The state and action cost matrices for the point mass model penalize tracking error on the positions while leaving velocity and force unpenalized:
+The cost function for the point mass model penalize the squared error between the response and targe positions and the squared control signal using the state and action cost matrices 
 \begin{align}
-    \mathbf Q &= \operatorname{diag}\left(\begin{bmatrix}1 & -1 \\ -1 & 1\end{bmatrix}, 0, 0\right), \\
-    \mathbf R &= \begin{bmatrix} c \end{bmatrix}.
+    \mathbf Q &= \operatorname{diag}\left(500\begin{bmatrix}1 & -1 \\ -1 & 1\end{bmatrix}, 0, 0\right), \\
+    \mathbf R &= \begin{bmatrix} c \end{bmatrix},
 \end{align}
+where again $c$ is a free parameter representing the scaling of the action cost. The arbitrary rescaling by a factor of 500 in $\mathbf Q$ was empirically chosen such that the scaling of the parameter $c$ is in a similar range compared to the velocity control model.
 
-\subsubsection{Delayed sensory observation model}
+\subsubsection{Delayed multisensory observation model}
 
-Sensory observations are modelled as the signed difference between the right and left hand positions for each modality $k\in\{\text{prop},\text{vis}\}$:
+We model delays by augmenting the state vector \citep[cf.][]{izawa2008line} and multisensory observations by assuming independent noisy sensory channels for the different sensory modalities \citep[cf.][]{crevecoeur2016dynamic,kasuga2022integration}.
+
+Each sensory observation is modelled as the signed difference between the right and left hand positions. Each sensory modality $k\in\{\text{prop},\text{vis}\}$ has its own delay $\delta_k$ and its own noise variance $\sigma_k^2$:
 \begin{align}
     \obs_t^{(k)} &= \mathbf H \state_{t-\delta_k} + \obsnoise_t^{(k)},
     && \obsnoise_t^{(k)} \sim \Normal(\mathbf 0, \mathbf \Sigma_\obs^{(k)}), \\
     \mathbf H &= \begin{bmatrix} 1 & -1 & 0 & \dots \end{bmatrix},
     && \mathbf \Sigma_\obs^{(k)} = \begin{bmatrix} \sigma_k^2 \end{bmatrix}.
 \end{align}
-To handle sensory delays, we augment the latent state by stacking previous states up to the maximum delay $\delta_{\max}=\max_k \delta_k$ and use the block-companion form for the dynamics and a block-diagonal state cost \citep[see]{izawa2008line}:
+The complete sensory signal received by the agent is
+\begin{align}
+    \obs_t = \begin{bmatrix}
+        \obs_t^{\text{prop}}, & \obs_t^{\text{vis}} 
+    \end{bmatrix}^\top.
+\end{align}
+We set $\delta_{\text{vis}} = 2$ and $\delta_{\text{prop}} = 1$, which at our frame rate of $dt=0.075\,$s corresponds to 150 ms and 75 ms sensory delays for vision and proprioception, respectively. The noise variances are free parameters, which are estimated from the data.
+
+To handle sensory delays, we augment the latent state by stacking previous states up to the maximum delay $\delta_{\max}=\max_k \delta_k$ and adjust the cost and dynamics matrices following \citet{izawa2008line} such that the previous $\delta_{\max}$ states are stored in the state vector, but do not affect the dynamics or cost function:
 \begin{align}
     \tilde\state_t &= \left[\state_t, \state_{t-1}, \dots, \state_{t-\delta_{\max}}\right]^\top, \\
     \tilde\state_{t+1} &= \tilde{\mathbf A} \tilde\state_t + \tilde{\mathbf B} \action_t + \tilde{\statenoise}_t, \\
-    \tilde{\mathbf Q} &= \operatorname{blkdiag}(\mathbf Q, \mathbf 0, \dots, \mathbf 0).
+    \tilde{\mathbf Q} &= \operatorname{blkdiag}(\mathbf Q, \mathbf 0, \dots, \mathbf 0), \\
+    \tilde{\mathbf A} &= \begin{bmatrix} \mathbf A & \mathbf 0 & \cdots & \mathbf 0 \\ \Identity & \mathbf 0 & \cdots & \mathbf 0 \\ \mathbf 0 & \Identity & \cdots & \mathbf 0 \\ \vdots & \vdots & \ddots & \vdots \\ \mathbf 0 & \mathbf 0 & \cdots & \Identity \end{bmatrix}.
 \end{align}
-We set $\delta_{\text{vis}} = 2$ and $\delta_{\text{prop}} = 1$, which at $dt=0.075\,$s corresponds to 150 ms and 75 ms sensory delays for vision and proprioception, respectively.
+Each sensory modality $k$ then uses an augmented observation matrix $\tilde{\mathbf H}^{(k)}$ that picks out the appropriately delayed state component from $\tilde\state_t$ \citep{crevecoeur2016dynamic}:
+\begin{align}
+    \obs_t^{(k)} &= \tilde{\mathbf H}^{(k)} \tilde\state_t + \obsnoise_t^{(k)}, \\
+    \tilde{\mathbf H}^{(k)} &= \begin{bmatrix} \mathbf 0 & \cdots & \mathbf 0 & \mathbf H & \mathbf 0 & \cdots & \mathbf 0 \end{bmatrix},
+\end{align}
+where the block $\mathbf H$ appears in the column block corresponding to delay $\delta_k$ and all other blocks are zero.
 
-% \subsubsection{Bias}
-% To model a visual bias, we add a latent bias state $b_t$ that shifts the visual observation but not the proprioceptive observation. For the velocity control model, this gives the latent state
-% \begin{align}
-%     \state_t = \begin{bmatrix}
-%         x^\text{right}_t \\ x^\text{left}_t \\ b_t
-%     \end{bmatrix},
-% \end{align}
-% with observation matrices
-% \begin{align}
-%     \mathbf H_\text{prop} &= \begin{bmatrix} 1 & -1 & 0 \end{bmatrix},
-%     && \mathbf H_\text{vis} = \begin{bmatrix} 0 & -1 & 1 \end{bmatrix}.
-% \end{align}
-% For the point mass model, the same idea is extended by adding the bias state to the point-mass latent dynamics, and the visual observation depends on the bias state while proprioception remains unbiased.
+
+
+
+\subsubsection{Model with visual offset}
+To model a visual offset, we augment the latent state with a scalar bias variable $b_t$ that shifts the visual observation but not the proprioceptive observation. If $\state_t^\text{base}$ denotes the original latent state for either model, the augmented state is
+\begin{align}
+    \state_t = \begin{bmatrix}
+        \state_t^\text{base} \\\ b_t
+    \end{bmatrix}.
+\end{align}
+The proprioceptive observation matrix is
+    \begin{align}
+        \mathbf H_\text{prop} = \begin{bmatrix} 1 & -1 & 0 \end{bmatrix},
+    \end{align}
+    and the visual observation matrix is
+    \begin{align}
+        \mathbf H_\text{vis} = \begin{bmatrix} 0 & -1 & 1 \end{bmatrix}.
+    \end{align}
+    For the point mass model, the corresponding matrices are
+    \begin{align}
+        \mathbf H_\text{prop} &= \begin{bmatrix} 1 & -1 & 0 & 0 & 0 \end{bmatrix}, \\
+        \mathbf H_\text{vis} &= \begin{bmatrix} 0 & -1 & 0 & 0 & 1 \end{bmatrix}.
+    \end{align}
+ In both cases, the bias state affects only the visual observation.
+
+ To simulate behavior in the calibration phase of the experiment, we took the posterior mean parameter estimates for each model and each participant. For each level of visual offset in the calibration phase, ranging from 0 to 5 cm in steps of 0.5cm, we simulated 20 trials of tracking behavior.
 
 \subsection{Model fitting}
-We fit the model to the behavioral data using inverse optimal control (IOC) for LQG system \citep{straub2022putting}. More concretely, IOC defines the likelihood of a trajectory of observed states conditional on the model parameters $p(\state_{1:T}^{(i)} \vert \bm \theta)$, where $\state_{1:T}^{(i)}$ is the sequence containing $T$ time steps of observed left and right hand positions in trial $i$. We assume that the individual trials are independent realizations of tracking behavior generated from the optimal control model with the same parameters $\bm \theta$, s.t. the likelihood of a dataset $\mathcal{D}$ is given by $p(\mathcal{D} \vert \bm \theta) = \prod_i p(\state_{1:T}^{(i)} \vert \bm \theta)$.
+We fit the model to the behavioral data using inverse optimal control (IOC) for LQG system \citep{straub2022putting}. More concretely, IOC defines the likelihood of a trajectory of observed states conditional on the model parameters $p(\state_{1:T}^{(i)} \vert \bm \theta)$, where $\state_{1:T}^{(i)}$ is the sequence containing $T$ time steps of observed left and right hand positions in trial $i$. For details about how the likelihood of an individual trial is computed, see \citet{straub2022putting}. We assume that the individual trials are independent realizations of tracking behavior generated from the optimal control model with the same parameters $\bm \theta$, s.t. the likelihood of a dataset $\mathcal{D}$ is given by $p(\mathcal{D} \vert \bm \theta) = \prod_i p(\state_{1:T}^{(i)} \vert \bm \theta)$. 
 
-For the experiment with unisensory and multisensory conditions, we assume that the same action cost $c$ and action variability $\sigma_\text{action}$ applies across all conditions. We further assume that there is one proprioceptive uncertainty parameter $\sigma_\text{prop}$ are two visual uncertainty parameters $\sigma_{\text{vis},1}$ and $\sigma_{\text{vis},2}$, one for each condition of visual uncertainty in the experiment.
+To model the experiment with unisensory and multisensory conditions, we assume that the same action cost $c$ and action variability $\sigma_\text{action}$ applies across all conditions. We further assume that there is one proprioceptive uncertainty parameter $\sigma_\text{prop}$ that is active across all conditions. Furthermore, there are two visual uncertainty parameters $\sigma_{\text{vis},1}$ and $\sigma_{\text{vis},2}$, one for each kind of visual stimulus in the experiment.
 
 Overall, the model has five free parameters $\bm \theta = \left\{c, \sigma_\text{action}, \sigma_\text{prop}, \sigma_{\text{vis},1}, \sigma_{\text{vis},2}\right\}$, 
 where $\sigma_{\text{vis},1}$ and $\sigma_{\text{vis},2}$ are the visual noise parameters for the two levels of visual stimuli in the experiment.
@@ -167,15 +196,16 @@ We define weakly informative prior distributions over the parameters:
 \begin{align*}
     c &\sim \text{HalfNormal}(1) \\
     \sigma_\text{action} &\sim \text{HalfNormal}(1) \\
-    \sigma_\text{prop} &\sim \text{HalfNormal}(40) \\ 
-    \sigma_{\text{vis},1}, \sigma_{\text{vis},2} &\sim \text{HalfNormal}(40) 
+    \sigma_\text{prop} &\sim \text{HalfNormal}(20) \\ 
+    \sigma_{\text{vis},1}, \sigma_{\text{vis},2} &\sim \text{HalfNormal}(20) 
 \end{align*}
 
 To test for optimal integration of visual and proprioceptive information, we consider different versions of the model. They differ only in how the multisensory condition is modeled, while the unisensory (visual and proprioceptive) conditions are always modeled in the same way. 
 \begin{enumerate}
-    % \item In the \textit{optimal integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
+    \item In the \textit{optimal integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
     \item In the \textit{proprioceptive dominance} model, only the proprioceptive sensory modality is used in the multisensory condition.
-    \item In the \textit{equal integration} model, we assume that averaging happens at the level of parameters, such that both sensory modalities use the same parameter $\sigma_i = \sqrt{( \sigma_{\text{vis},i}^2 + \sigma_\text{prop}^2) / 2}$ in the multisensory condition, while unisensory conditions still use their own modality-specific parameters $\sigma_{\text{vis},i}$ and $\sigma_\text{prop}$, respectively.    
+    \item In the \textit{visual dominance} model, only the visual sensory modality is used in the multisensory condition.
+    \item As a heuristic implementation of an \textit{equal integration} model, we assume that averaging happens at the level of parameters, such that both sensory modalities use the same parameter $\sigma_i = \sqrt{( \sigma_{\text{vis},i}^2 + \sigma_\text{prop}^2) / 2}$ in the multisensory condition, while unisensory conditions still use their own modality-specific parameters $\sigma_{\text{vis},i}$ and $\sigma_\text{prop}$, respectively.    
 \end{enumerate}
  
 
