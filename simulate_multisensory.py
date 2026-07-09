@@ -90,7 +90,6 @@ if __name__ == "__main__":
         x = model.simulate(
             rng_key=random.PRNGKey(0),
             n=20,
-            # TODO: this does not work anymore for the standard model without point mass dynamics, because it has a different state space dimensionality
             x0=x0,
             xhat0=jnp.zeros(model.bdim),
         )

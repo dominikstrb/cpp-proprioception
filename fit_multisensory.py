@@ -26,9 +26,9 @@ def parse_args():
     parser.add_argument(
         "--vis_delay", type=int, default=2, help="Delay in visual signal (in the model)"
     )
-    parser.add_argument("--seed", type=int, default=7453, help="Random seed")
+    parser.add_argument("--seed", type=int, default=3, help="Random seed")
     parser.add_argument(
-        "--nwarmup", type=int, default=1000, help="Number of warump steps for NUTS."
+        "--nwarmup", type=int, default=2_500, help="Number of warump steps for NUTS."
     )
     parser.add_argument(
         "--nsamp", type=int, default=2_500, help="Number of samples for NUTS."

@@ -1,3 +1,5 @@
+from collections import defaultdict
+import numpy as np
 import arviz as az
 import pandas as pd
 
@@ -32,7 +34,7 @@ def load_model(participant, model_name, model_class, seed=7452):
 if __name__ == "__main__":
     participants = load_multisensory_data(base_path="data")["participant"].unique()
 
-    participants_to_exclude = [173058413, 330954011]
+    participants_to_exclude = [173058413, 330954011, 657093471]
 
     # participants = participants[:8]
     participants = [p for p in participants if p not in participants_to_exclude]
@@ -43,6 +45,7 @@ if __name__ == "__main__":
 
     summaries = []
     loos = []
+    pointwise_elpds = defaultdict(list)
     for participant in participants:
         # dict for model comparisons
         models = {}
@@ -72,11 +75,15 @@ if __name__ == "__main__":
                 summaries.append(summary)
 
                 # compute the Pareto-smoothed importance sampling leave-one-out cross-validation (PSIS-LOO) for the model
-                loo = az.loo(model)
+                loo = az.loo(model, pointwise=True)
                 pareto_k = loo.pareto_k
                 p_problematic = (loo.pareto_k.to_numpy() > 0.7).sum() / len(
                     loo.pareto_k.to_numpy()
                 )
+
+                key = (model_name, model_class)
+                pointwise_elpds[key].append(loo.loo_i.values)
+
                 loo["integration"] = model_name
                 loo["model"] = model_class
                 loo["participant"] = participant
