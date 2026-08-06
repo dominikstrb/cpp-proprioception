@@ -30,7 +30,7 @@ default_priors = {
     "sigma_vis": dist.HalfNormal(20.0).expand([2]),
     "sigma_prop": dist.HalfNormal(20.0),
     "action_variability": dist.HalfNormal(1.0),
-    "action_cost": dist.HalfNormal(1.0),
+    "action_cost": dist.HalfNormal(2.0),
 }
 
 
