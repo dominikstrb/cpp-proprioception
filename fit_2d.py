@@ -31,10 +31,10 @@ def lqg_model(x, process_noise, ModelType):
 
     # priors
     action_variability = numpyro.sample(
-        "action_variability", dist.HalfNormal(0.5), sample_shape=(dim,)
+        "action_variability", dist.HalfNormal(1.), sample_shape=(dim,)
     )
     action_cost = numpyro.sample(
-        "action_cost", dist.HalfNormal(0.5), sample_shape=(dim,)
+        "action_cost", dist.HalfNormal(1.), sample_shape=(dim,)
     )
 
     # prior on correlation
@@ -51,7 +51,7 @@ def lqg_model(x, process_noise, ModelType):
         numpyro.deterministic("rho", L[1, 0])
 
     if ModelType == CorrelatedObservationModel:
-        sigma = numpyro.sample("sigma", dist.HalfNormal(5.0), sample_shape=(dim,))
+        sigma = numpyro.sample("sigma", dist.HalfNormal(10.), sample_shape=(dim,))
 
         # pass the parameters to the model
         model = ModelType(
