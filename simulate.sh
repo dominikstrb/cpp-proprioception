@@ -32,7 +32,7 @@ source .venv/bin/activate
 for participant in "${participants[@]}"; do
     for model_class in "${model_classes[@]}"; do
         echo "Simulating participant $participant, model class $model_class"
-        nohup python simulate_multisensory.py --participant $participant --seed 3 --nwarmup 2500 --model_class $model_class --conditions prop vis multi > logs/simulate.log 2>&1 &
+        nohup python simulate_multisensory.py --participant $participant --seed 3 --nwarmup 2500 --model_class $model_class --conditions prop vis multi > logs/simulate-$participant-$model_class.log 2>&1 &
         wait
     done
 done

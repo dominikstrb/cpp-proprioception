@@ -41,6 +41,7 @@ if __name__ == "__main__":
 
     summaries = []
     loos = []
+    pointwise_elpds = defaultdict(dict)
     for participant in participants:
         # dict for model comparisons
         models = {}
@@ -75,6 +76,9 @@ if __name__ == "__main__":
                     loo.pareto_k.to_numpy()
                 )
 
+                key = (model_name, model_class)
+                pointwise_elpds[key][participant] = loo.loo_i.values
+
                 loo["integration"] = model_name
                 loo["model"] = model_class
                 loo["participant"] = participant
@@ -95,6 +99,43 @@ if __name__ == "__main__":
     loo_df["elpd_high"] = loo_df["elpd"] + 1.96 * loo_df["se"]
 
     loo_df.to_csv("results/aggregated/loo_all_participants.csv")
+
+
+    model_keys = list(pointwise_elpds.keys())
+    # concatenate each model's pointwise elpds across participants, always in
+    # the same participant order, so entries line up trial-for-trial per participant
+    pooled_loo_i = {
+        key: np.concatenate([pointwise_elpds[key][p] for p in participants])
+        for key in model_keys
+    }
+
+    totals = {key: vec.sum() for key, vec in pooled_loo_i.items()}
+    ref_key = max(totals, key=totals.get)
+    ref_vec = pooled_loo_i[ref_key]
+    n_total = len(ref_vec)
+
+    rows = []
+    for key, vec in pooled_loo_i.items():
+        d_i = vec - ref_vec
+        rows.append(
+            {
+                "integration": key[0],
+                "model": key[1],
+                "elpd_pooled": totals[key],
+                "elpd_diff": d_i.sum(),
+                "se_diff": np.sqrt(n_total * np.var(d_i, ddof=1)),
+                "n_pooled_points": n_total,
+                "is_reference": key == ref_key,
+            }
+        )
+
+    compare_df = (
+        pd.DataFrame(rows)
+        .sort_values("elpd_diff", ascending=False)
+        .reset_index(drop=True)
+    )
+    compare_df.index.name = "rank"
+    compare_df.to_csv("results/aggregated/pooled_model_comparison.csv")
 
     df = pd.concat(summaries).reset_index().rename(columns={"index": "parameter"})
     df.to_csv("results/aggregated/summaries_all_participants.csv")

@@ -145,6 +145,7 @@ class BiasBoundedActor(System):
         delays=[1, 1],
         T=1000,
         obs_indices=None,
+        knows_about_bias=False,
     ):
 
         # generative model that has a bias term
@@ -168,9 +169,10 @@ class BiasBoundedActor(System):
                 [process_noise, 0.0, 0.0],
             ]
         )
+        # V = jnp.diag(jnp.array([process_noise, action_variability, 0.]))
         Q = jnp.array([[1.0, -1.0, 0.0], [-1.0, 1.0, 0.0], [0.0, 0.0, 0.0]])
         R = jnp.array([[action_cost]])
-        spec = multisensory_delay_system(
+        dynamics = multisensory_delay_system(
             A=A,
             B=B,
             V=V,
@@ -182,7 +184,28 @@ class BiasBoundedActor(System):
             T=T,
         )
 
-        super().__init__(actor=spec, dynamics=spec)
+        if not knows_about_bias:
+            A_subj = jnp.eye(2)
+            B_subj = dt * jnp.array([[0.0], [1.0]])
+            V_subj = jnp.diag(jnp.array([process_noise, action_variability]))
+            F_subj = jnp.array([[1.0, -1.0]])
+            Q_subj = jnp.array([[1.0, -1.0], [-1.0, 1.0]])
+            R_subj = jnp.array([[action_cost]])
+            actor = multisensory_delay_system(
+                A=A_subj,
+                B=B_subj,
+                V=V_subj,
+                Fs=[F_subj for _ in sigmas],
+                Ws=[jnp.diag(jnp.array([sigma])) for sigma in sigmas],
+                Q=Q_subj,
+                R=R_subj,
+                delays=delays,
+                T=T,
+            )
+        else:
+            actor = dynamics
+
+        super().__init__(actor=actor, dynamics=dynamics)
 
 
 class BiasBoundedActorPointMassDynamics(System):
@@ -198,7 +221,8 @@ class BiasBoundedActorPointMassDynamics(System):
         tau=0.066,
         delays=[1, 1],
         T=1000,
-        obs_indices=None
+        obs_indices=None,
+        knows_about_bias=False,
     ):
 
         A, B, V = point_mass_dynamics_matrices(
@@ -241,7 +265,7 @@ class BiasBoundedActorPointMassDynamics(System):
         )
         R = jnp.array([[action_cost]])
 
-        spec = multisensory_delay_system(
+        dynamics = multisensory_delay_system(
             A=A_dynamics,
             B=B_dynamics,
             V=V_dynamics,
@@ -253,5 +277,25 @@ class BiasBoundedActorPointMassDynamics(System):
             T=T,
         )
 
-        actor = spec
-        super().__init__(actor=actor, dynamics=spec)
+        if not knows_about_bias:
+            A_subj = linalg.block_diag(jnp.eye(1), A)
+            B_subj = jnp.vstack([jnp.zeros((1, 1)), B])
+            V_subj = linalg.block_diag(jnp.diag(jnp.array([process_noise])), V)
+            F_subj = jnp.array([[1.0, -1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
+            Q_subj = 500 * jnp.array([[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
+            R_subj = jnp.array([[action_cost]])
+
+            actor = multisensory_delay_system(
+                A=A_subj,
+                B=B_subj,
+                V=V_subj,
+                Fs=[F_subj for _ in sigmas],
+                Ws=[sigma * jnp.eye(2) for sigma in sigmas],
+                Q=Q_subj,
+                R=R_subj,
+                delays=delays,
+                T=T,
+            )
+        else:
+            actor = dynamics
+        super().__init__(actor=actor, dynamics=dynamics)
