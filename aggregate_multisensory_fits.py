@@ -30,11 +30,6 @@ def load_model(participant, model_name, model_class, seed=7452):
 if __name__ == "__main__":
     participants = load_multisensory_data(base_path="data")["participant"].unique()
 
-    participants_to_exclude = [173058413, 330954011, 657093471]
-
-    # participants = participants[:8]
-    participants = [p for p in participants if p not in participants_to_exclude]
-
     model_names = ["equal_integration", "no_integration", "optimal", "vision_only"]
 
     model_classes = ["BoundedActorPointMassDynamics", "BoundedActor"]

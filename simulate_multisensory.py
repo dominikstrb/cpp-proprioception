@@ -96,11 +96,6 @@ if __name__ == "__main__":
 
     delays = {"vis": args.vis_delay, "prop": args.prop_delay}
 
-    # jit_simulate = jit(
-    #     simulate_calibration_phase,
-    #     static_argnames=["model", "model_class"],
-    # )
-
     # load the inference data for all models
     models = {
         model_name: az.from_netcdf(
@@ -188,34 +183,34 @@ if __name__ == "__main__":
             k: v[np.random.choice(v.shape[0], size=100)] for k, v in samples.items()
         }
 
-        # @partial(jit, static_argnums=(1,))
-        # def simulate_calibration_phase(
-        #     bias,
-        #     vis_noise,
-        #     params,
-        #     key,
-        # ):
-        #     model, delay_list = get_model(
-        #         vis_noise=vis_noise,
-        #         model_name=model_name,
-        #         params=params,
-        #         delays=delays,
-        #         dt=dt,
-        #         model_class=model_class,
-        #         T=168,
-        #     )
+        @partial(jit, static_argnums=(1,))
+        def simulate_calibration_phase(
+            bias,
+            vis_noise,
+            params,
+            key,
+        ):
+            model, delay_list = get_model(
+                vis_noise=vis_noise,
+                model_name=model_name,
+                params=params,
+                delays=delays,
+                dt=dt,
+                model_class=model_class,
+                T=168,
+            )
 
-        #     if model_class == multisensory.BiasBoundedActorPointMassDynamics:
-        #         x0 = jnp.array([0.0, 0.0, 0.0, 0.0, bias] * (max(delay_list) + 1))
-        #     elif model_class == multisensory.BiasBoundedActor:
-        #         x0 = jnp.array([0.0, 0.0, bias] * (max(delay_list) + 1))
-        #     x = model.simulate(
-        #         rng_key=key,
-        #         n=1,
-        #         x0=x0,
-        #         xhat0=jnp.zeros(model.bdim),
-        #     )
-        #     return x[0]
+            if model_class == multisensory.BiasBoundedActorPointMassDynamics:
+                x0 = jnp.array([0.0, 0.0, 0.0, 0.0, bias] * (max(delay_list) + 1))
+            elif model_class == multisensory.BiasBoundedActor:
+                x0 = jnp.array([0.0, 0.0, bias] * (max(delay_list) + 1))
+            x = model.simulate(
+                rng_key=key,
+                n=1,
+                x0=x0,
+                xhat0=jnp.zeros(model.bdim),
+            )
+            return x[0]
 
         @partial(jit, static_argnums=(1,))
         def log_likelihood_fn(x, vis_noise, params, offset):
@@ -256,30 +251,30 @@ if __name__ == "__main__":
             # # get posterior mean
             # posterior_mean = summary["mean"].to_dict()
 
-            # x_sim = vmap(
-            #     lambda params, key: simulate_calibration_phase(
-            #         offset, vis_noise, params, key
-            #     )
-            # )(samples, random.split(random.PRNGKey(0), 100))
+            x_sim = vmap(
+                lambda params, key: simulate_calibration_phase(
+                    offset, vis_noise, params, key
+                )
+            )(samples, random.split(random.PRNGKey(0), 100))
 
-            # for rep, x_i in enumerate(x_sim):
-            #     dfs.append(
-            #         pd.DataFrame(
-            #             {
-            #                 "participant": args.participant,
-            #                 "phase": "calibration",
-            #                 "cursor_offset": offset,
-            #                 "vis_noise": vis_noise,
-            #                 "trial_number": trial_number,
-            #                 "model": model_name,
-            #                 "model_class": args.model_class,
-            #                 "righty_pos": x_i[:, 0],
-            #                 "lefty_pos": x_i[:, 1],
-            #                 "repetition": rep,
-            #                 "time": np.arange(x_i.shape[0]) * dt,
-            #             }
-            #         )
-            #     )
+            for rep, x_i in enumerate(x_sim):
+                dfs.append(
+                    pd.DataFrame(
+                        {
+                            "participant": args.participant,
+                            "phase": "calibration",
+                            "cursor_offset": offset,
+                            "vis_noise": vis_noise,
+                            "trial_number": trial_number,
+                            "model": model_name,
+                            "model_class": args.model_class,
+                            "righty_pos": x_i[:, 0],
+                            "lefty_pos": x_i[:, 1],
+                            "repetition": rep,
+                            "time": np.arange(x_i.shape[0]) * dt,
+                        }
+                    )
+                )
 
             log_likelihood = vmap(
                 lambda params: log_likelihood_fn(x, vis_noise, params, offset)
@@ -291,15 +286,17 @@ if __name__ == "__main__":
                     "model_class": args.model_class,
                     "trial_number": trial_number,
                     "vis_noise": vis_noise,
-                    "log_likelihood": (logsumexp(log_likelihood) - jnp.log(log_likelihood.shape[0])).item(),
+                    "log_likelihood": (
+                        logsumexp(log_likelihood) - jnp.log(log_likelihood.shape[0])
+                    ).item(),
                 }
             )
 
-    # df = pd.concat(dfs, ignore_index=True)
-    # df.to_csv(
-    #     f"results/calibration/multisensory-simulations-calibration-{filename_from_args(args)}.csv",
-    #     index=False,
-    # )
+    df = pd.concat(dfs, ignore_index=True)
+    df.to_csv(
+        f"results/calibration/multisensory-simulations-calibration-{filename_from_args(args)}.csv",
+        index=False,
+    )
 
     likelihood_df = pd.DataFrame(likelihoods)
     likelihood_df.to_csv(

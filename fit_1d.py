@@ -1,12 +1,5 @@
-from typing import Tuple
 import argparse
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-
-mpl.rcParams["axes.spines.right"] = False
-mpl.rcParams["axes.spines.top"] = False
-
-from jax import numpy as jnp, random
+from jax import random
 
 import numpyro
 from numpyro import distributions as dist
