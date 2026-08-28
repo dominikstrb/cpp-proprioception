@@ -124,9 +124,7 @@ if __name__ == "__main__":
 
     idata = az.from_numpyro(mcmc)
 
-    idata.to_netcdf(
-        f"results/1d/{filename_from_args(args)}.nc"
-    )
+    idata.to_netcdf(f"results/1d/{filename_from_args(args)}.nc")
 
     summary = az.summary(idata)
     print(summary)
