@@ -148,10 +148,10 @@ We use weakly informative priors for the parameters:
 
 To test for optimal integration of visual and proprioceptive information we consider several model variants that differ only in how the multisensory condition is modeled; the unisensory conditions are modeled identically across variants.
 \begin{enumerate}
-    \item In the \textit{optimal integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
-    \item In the \textit{proprioceptive dominance} model, only the proprioceptive sensory modality is used in the multisensory condition.
-    \item In the \textit{visual dominance} model, only the visual sensory modality is used in the multisensory condition.
-    \item As a heuristic implementation of an \textit{equal integration} model, we assume that averaging happens at the level of parameters, such that both sensory modalities use the same parameter $\sigma_i = \sqrt{( \sigma_{\text{vis},i}^2 + \sigma_\text{prop}^2) / 2}$ in the multisensory condition, while unisensory conditions still use their own modality-specific parameters $\sigma_{\text{vis},i}$ and $\sigma_\text{prop}$, respectively.    
+    \item In the \textit{proprioceptive-only} model, only the proprioceptive sensory modality is used in the multisensory condition.
+    \item In the \textit{visual-only} model, only the visual sensory modality is used in the multisensory condition.
+    \item In the \textit{reliability-weighted integration} model, both visual and proprioceptive information is used in the multisensory condition and they are combined optimally as prescribed by a Kalman filter. 
+    \item As a heuristic implementation of an \textit{equal-integration} model, we assume that averaging happens at the level of parameters, such that both sensory modalities use the same parameter $\sigma_i = \sqrt{( \sigma_{\text{vis},i}^2 + \sigma_\text{prop}^2) / 2}$ in the multisensory condition, while unisensory conditions still use their own modality-specific parameters $\sigma_{\text{vis},i}$ and $\sigma_\text{prop}$, respectively.    
 \end{enumerate}
  
 \subsection{Simulation and evaluation of the calibration phase}
