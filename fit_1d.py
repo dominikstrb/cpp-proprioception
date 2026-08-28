@@ -10,7 +10,6 @@ numpyro.set_host_device_count(4)
 
 from cppp.load import load_data, preprocess_data
 from cppp.constants import sampling_rate
-from cppp.utils import compute_crosscorr_stats
 from cppp.models import multisensory
 
 

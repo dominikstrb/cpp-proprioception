@@ -95,7 +95,6 @@ if __name__ == "__main__":
 
     loo_df.to_csv("results/aggregated/loo_all_participants.csv")
 
-
     model_keys = list(pointwise_elpds.keys())
     # concatenate each model's pointwise elpds across participants, always in
     # the same participant order, so entries line up trial-for-trial per participant

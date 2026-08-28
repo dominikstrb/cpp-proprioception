@@ -86,7 +86,9 @@ if __name__ == "__main__":
     damping = 0.015
     m = 1.0
     tau = 0.066
-    A_c = jnp.array([[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]])
+    A_c = jnp.array(
+        [[0.0, 1.0, 0.0], [0.0, -damping / m, 1.0 / m], [0.0, 0.0, -1.0 / tau]]
+    )
     B = jnp.array([[0.0], [0.0], [1.0 / tau]])
 
     dt = 0.01

@@ -20,7 +20,7 @@ if __name__ == "__main__":
                     participant=participant,
                     condition=condition,
                     vis_noise=vis_noise,
-                    cutoff=12
+                    cutoff=12,
                 )
 
                 vels = np.diff(data[(condition, vis_noise)], axis=-2)
